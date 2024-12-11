@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Settings(BaseSettings):
-    APP_NAME: str = "Fullstack Template"
+    APP_NAME: str = "Research Agent"
     SETTING_VERSION: str = "0.0.1"
 
     # Database settings

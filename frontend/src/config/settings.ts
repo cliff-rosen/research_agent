@@ -9,12 +9,12 @@ interface Settings {
 
 const productionSettings: Settings = {
     apiUrl: 'https://cognify-api.ironcliff.ai',
-    appName: 'Fullstack Starter'
+    appName: 'Research Agent'
 };
 
 const developmentSettings: Settings = {
     apiUrl: 'http://localhost:8000',
-    appName: 'Fullstack Starter'
+    appName: 'Research Agent (Dev)'
 };
 
 // Select settings based on environment
