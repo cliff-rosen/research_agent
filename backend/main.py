@@ -2,9 +2,10 @@ from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from routers import search
 from database import get_db, init_db
 from models import Base
-from routers import auth, topics
+from routers import auth
 from config import settings, setup_logging
 
 # Setup logging first
@@ -49,9 +50,9 @@ app.include_router(
     responses={401: {"description": "Not authenticated"}}
 )
 app.include_router(
-    topics.router,
-    prefix="/api/topics",
-    tags=["topics"],
+    search.router,
+    prefix="/api/search",
+    tags=["search"],
     responses={401: {"description": "Not authenticated"}}
 )
 logger.info("Routers included")

@@ -5,12 +5,52 @@ from database import get_db
 from schemas import (
     TopicResponse, TopicCreate, TopicUpdate
 )
-from services import topic_service, auth_service
+from services import topic_service, auth_service, search_service
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+################## Search Routes ##################
+
+@router.get(
+    "/search",
+    response_model=List[dict],
+    summary="Search topics and their content",
+    responses={
+        200: {
+            "description": "Search results successfully retrieved",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "topic_id": 1,
+                            "topic_name": "Machine Learning",
+                            "relevance_score": 0.95,
+                            "matched_content": "Discussion about neural networks..."
+                        }
+                    ]
+                }
+            }
+        },
+        401: {"description": "Not authenticated"}
+    }
+)
+async def search(
+    query: str,
+    current_user = Depends(auth_service.validate_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Search across topics and their content
+    
+    Parameters:
+    - **query**: Search query string
+    """
+    logger.info(f"search_topics endpoint called with query: {query}")
+    return await search_service.search(db, query, current_user.user_id)
 
 
 ################## CRUD Routes ##################
@@ -137,3 +177,4 @@ async def delete_topic(
     logger.info(f"delete_topic endpoint called for topic_id: {topic_id}")
     await topic_service.delete_topic(db, topic_id, current_user.user_id)
     return None
+
