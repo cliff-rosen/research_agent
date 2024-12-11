@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { setSessionExpiredHandler } from './lib/api'
 import LoginForm from './components/auth/LoginForm'
 import settings from './config/settings'
+import { SearchBar } from './components/common/SearchBar'
 
 /*
 all backend requests are made via api.ts, which implements axios interceptors
@@ -56,10 +57,11 @@ function App() {
       <ThemeProvider>
         <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900">
           <TopBar />
-          <div className="flex-1 flex items-center justify-center">
-            <h1 className="text-2xl font-semibold text-gray-800 dark:text-gray-200">
+          <div className="flex-1 flex flex-col items-center">
+            <h1 className="text-2xl font-semibold text-gray-800 dark:text-gray-200 my-4">
               Welcome to {settings.appName}
             </h1>
+            <SearchBar />
           </div>
         </div>
       </ThemeProvider>
