@@ -1,11 +1,5 @@
 import React, { useState } from 'react';
-import { topicsApi } from '../../lib/api/topicsApi';
-
-interface SearchResult {
-    topic_id: number;
-    topic_name: string;
-    matched_content: string;
-}
+import { searchApi, SearchResult } from '../../lib/api/searchApi';
 
 export const SearchBar: React.FC = () => {
     const [query, setQuery] = useState('');
@@ -21,10 +15,10 @@ export const SearchBar: React.FC = () => {
         setError('');
 
         try {
-            const searchResults = await topicsApi.searchTopics(query);
+            const searchResults = await searchApi.search(query);
             setResults(searchResults);
         } catch (err) {
-            setError(topicsApi.handleError(err));
+            setError(searchApi.handleError(err));
             console.error('Search error:', err);
         } finally {
             setIsLoading(false);
@@ -63,14 +57,24 @@ export const SearchBar: React.FC = () => {
             {results.length > 0 && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
                     <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {results.map((result) => (
-                            <li key={result.topic_id} className="p-4">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                                    {result.topic_name}
-                                </h3>
-                                <p className="mt-2 text-gray-600 dark:text-gray-400">
-                                    {result.matched_content}
-                                </p>
+                        {results.map((result, index) => (
+                            <li key={index} className="p-4">
+                                <a
+                                    href={result.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block hover:bg-gray-50 dark:hover:bg-gray-700 -m-4 p-4"
+                                >
+                                    <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+                                        {result.title}
+                                    </h3>
+                                    <div className="text-sm text-green-700 dark:text-green-400 mt-1">
+                                        {result.displayLink}
+                                    </div>
+                                    <p className="mt-2 text-gray-600 dark:text-gray-400">
+                                        {result.snippet}
+                                    </p>
+                                </a>
                             </li>
                         ))}
                     </ul>

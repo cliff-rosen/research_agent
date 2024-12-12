@@ -47,57 +47,12 @@ class TokenData(BaseModel):
         default=None, description="User's username")
 
 
-##### TOPIC SCHEMA #####
+##### SEARCH SCHEMA #####
 
-class TopicCreate(BaseModel):
-    """Schema for creating a new topic"""
-    topic_name: str = Field(
-        min_length=1,
-        max_length=255,
-        description="Name of the topic",
-        example="Machine Learning Fundamentals"
-    )
-
-
-class TopicUpdate(BaseModel):
-    """Schema for updating a topic (PATCH)"""
-    topic_name: Optional[str] = Field(
-        default=None,
-        min_length=1,
-        max_length=255,
-        description="Updated name of the topic",
-        example="Advanced Machine Learning"
-    )
-
-
-class TopicResponse(BaseModel):
-    """Schema for topic responses"""
-    topic_id: int = Field(description="Unique identifier for the topic")
-    user_id: int = Field(description="ID of the user who owns this topic")
-    topic_name: str = Field(description="Name of the topic")
-    creation_date: datetime = Field(description="When the topic was created")
-    entry_count: int = Field(
-        description="Number of entries in this topic", default=0)
-    is_uncategorized: bool = Field(
-        default=False, description="Whether this is the uncategorized topic")
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class TopicList(BaseModel):
-    """Schema for paginated topic lists"""
-    items: List[TopicResponse]
-    total: int = Field(ge=0)
-
-
-class TopicSearchResponse(TopicResponse):
-    score: float
-    is_ai_suggested: bool = False
-    is_new_topic: bool = False
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class TopicSuggestionResponse(BaseModel):
-    suggested_name: str
-
+class SearchResult(BaseModel):
+    """Schema for search results"""
+    title: str = Field(description="Title of the search result")
+    link: str = Field(description="Link to the search result")
+    snippet: str = Field(description="Snippet of the search result")
+    displayLink: str = Field(description="Display link of the search result")
+    pagemap: dict = Field(description="Pagemap of the search result")

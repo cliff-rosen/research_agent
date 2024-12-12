@@ -5,6 +5,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import requests
 from config.settings import settings
+from schemas import SearchResult
 
 NUM_RESULTS = settings.GOOGLE_SEARCH_NUM_RESULTS
 
@@ -30,21 +31,14 @@ def google_search(query: str,
     Returns:
         List[Dict]: List of search results, each containing 'title', 'link', and 'snippet'
     """
-    
-    # Validate parameters
-    if num_results < 1 or num_results > 10:
-        raise ValueError("num_results must be between 1 and 10")
-    
-    # Base URL for Google Custom Search API
     base_url = "https://www.googleapis.com/customsearch/v1"
     
-    # Parameters for the API request
     params = {
         'key': api_key,
         'cx': cx,
         'q': query,
         'num': num_results,
-        'lr': f'lang_{language}',
+        'hl': language,
         'safe': safe
     }
     
@@ -68,7 +62,7 @@ def google_search(query: str,
                 'link': item.get('link', ''),
                 'snippet': item.get('snippet', ''),
                 'displayLink': item.get('displayLink', ''),
-                'pagemap': item.get('pagemap', {})
+                'pagemap': {'note': 'pagemap disabled'}
             }
             results.append(result)
         
@@ -81,7 +75,7 @@ def google_search(query: str,
         logger.error(f"An error occurred during Google search: {str(e)}")
         return []
 
-async def search(db: Session, query: str, user_id: int = 0) -> List[Dict]:
+async def search(db: Session, query: str, user_id: int = 0) -> List[SearchResult]:
     """
     Perform web search for the given query using Google Custom Search API
     
@@ -91,7 +85,7 @@ async def search(db: Session, query: str, user_id: int = 0) -> List[Dict]:
         user_id (int): ID of the user performing the search
         
     Returns:
-        List[Dict]: List of search results from the web
+        List[SearchResult]: List of search results from the web
     """
     logger.info(f"Performing web search for query: {query}")
     
@@ -107,19 +101,17 @@ async def search(db: Session, query: str, user_id: int = 0) -> List[Dict]:
                 NUM_RESULTS  # Number of results
             )
         
-        # Transform results to match our expected format
-        formatted_results = []
-        for idx, result in enumerate(results, 1):
-            formatted_results.append({
-                "id": idx,
-                "topic_name": query,
-                "matched_content": result["link"],
-                "title": result["title"],
-                "snippet": result["snippet"],
-                "source": "web"
-            })
-            
-        return formatted_results
+        # Transform results to match our SearchResult schema
+        return [
+            SearchResult(
+                title=result["title"],
+                link=result["link"],
+                snippet=result["snippet"],
+                displayLink=result["displayLink"],
+                pagemap=result["pagemap"]
+            )
+            for result in results
+        ]
         
     except Exception as e:
         logger.error(f"Error performing Google search: {str(e)}")
