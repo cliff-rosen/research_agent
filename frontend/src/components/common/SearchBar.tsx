@@ -1,16 +1,6 @@
 import React, { useState } from 'react';
 import { searchApi, SearchResult } from '../../lib/api/searchApi';
 
-interface SearchResult {
-    title: string;
-    link: string;
-    snippet: string;
-    displayLink: string;
-    pagemap?: {
-        [key: string]: any;
-    };
-}
-
 export const SearchBar: React.FC = () => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);

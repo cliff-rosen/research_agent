@@ -139,8 +139,20 @@ async def login_user(db: Session, email: str, password: str) -> Token:
 async def validate_token(
     credentials: HTTPAuthorizationCredentials = Security(security),
     db: Session = Depends(get_db)
-):
-    """Validate JWT token and return user"""
+) -> User:
+    """
+    Validate JWT token and return user
+    
+    Args:
+        credentials: HTTP Authorization credentials containing the JWT token
+        db: Database session
+        
+    Returns:
+        User: Authenticated user object
+        
+    Raises:
+        HTTPException: If token is invalid or user not found
+    """
     logger.info("validate_token called")
     try:
         logger.info("Getting token from credentials")
@@ -166,6 +178,14 @@ async def validate_token(
                 detail="Invalid token payload"
             )
         
+        # Get database session
+        if not isinstance(db, Session):
+            logger.error(f"Invalid database session type: {type(db)}")
+            raise HTTPException(
+                status_code=500,
+                detail="Database configuration error"
+            )
+            
         logger.debug("Querying user from database")
         user = db.query(User).filter(User.email == email).first()
         if user is None:
@@ -180,9 +200,17 @@ async def validate_token(
         logger.info(f"Successfully validated token for user: {email}")
         return user
         
-    except Exception as e:
+    except JWTError as e:
         logger.error("############## JWT validation error ##############")
         logger.error(f"JWT validation error: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=401, 
+            detail="Invalid token format or signature"
+        )
+    except Exception as e:
+        logger.error("############## Token validation error ##############")
+        logger.error(f"Token validation error: {str(e)}")
         logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=401, 

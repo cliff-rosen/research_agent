@@ -56,3 +56,9 @@ class SearchResult(BaseModel):
     snippet: str = Field(description="Snippet of the search result")
     displayLink: str = Field(description="Display link of the search result")
     pagemap: Optional[Dict[str, Any]] = {}
+    relevance_score: float = Field(
+        default=0.0,
+        description="AI-generated relevance score from 0-100",
+        ge=0.0,
+        le=100.0
+    )

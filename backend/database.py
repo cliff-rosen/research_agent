@@ -5,6 +5,7 @@ pymysql.install_as_MySQLdb()
 from config.settings import settings
 from models import Base
 import logging
+from typing import Generator
 
 logger = logging.getLogger(__name__)
 
@@ -18,11 +19,16 @@ engine = create_engine(
     pool_pre_ping=True
 )
 
-
 # Create sessionmaker
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-def get_db():
+def get_db() -> Generator:
+    """
+    FastAPI dependency that provides a database session
+    
+    Yields:
+        Session: SQLAlchemy database session
+    """
     db = SessionLocal()
     try:
         yield db
