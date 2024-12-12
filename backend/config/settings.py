@@ -25,7 +25,8 @@ class Settings(BaseSettings):
     ANTHROPIC_MODEL: str = "claude-3-sonnet-20240229"
     GOOGLE_SEARCH_API_KEY: str = os.getenv("GOOGLE_SEARCH_API_KEY")
     GOOGLE_SEARCH_ENGINE_ID: str = os.getenv("GOOGLE_SEARCH_ENGINE_ID")
-
+    GOOGLE_SEARCH_NUM_RESULTS: int = 10
+    
     # CORS settings
     CORS_ORIGINS: list[str] = ["*"]  # In production, specify exact origins
     CORS_ALLOW_CREDENTIALS: bool = True

@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import requests
 from config.settings import settings
 
-NUM_RESULTS = 10
+NUM_RESULTS = settings.GOOGLE_SEARCH_NUM_RESULTS
 
 logger = logging.getLogger(__name__)
 
