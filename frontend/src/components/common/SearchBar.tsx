@@ -1,6 +1,16 @@
 import React, { useState } from 'react';
 import { searchApi, SearchResult } from '../../lib/api/searchApi';
 
+interface SearchResult {
+    title: string;
+    link: string;
+    snippet: string;
+    displayLink: string;
+    pagemap?: {
+        [key: string]: any;
+    };
+}
+
 export const SearchBar: React.FC = () => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
@@ -74,6 +84,18 @@ export const SearchBar: React.FC = () => {
                                     <p className="mt-2 text-gray-600 dark:text-gray-400">
                                         {result.snippet}
                                     </p>
+                                    {/* {result.pagemap && (
+                                        <div className="pagemap">
+                                            {result.pagemap.cse_thumbnail && (
+                                                <img 
+                                                    src={result.pagemap.cse_thumbnail[0].src} 
+                                                    alt={result.title}
+                                                    width={result.pagemap.cse_thumbnail[0].width}
+                                                    height={result.pagemap.cse_thumbnail[0].height}
+                                                />
+                                            )}
+                                        </div>
+                                    )} */}
                                 </a>
                             </li>
                         ))}

@@ -62,7 +62,7 @@ def google_search(query: str,
                 'link': item.get('link', ''),
                 'snippet': item.get('snippet', ''),
                 'displayLink': item.get('displayLink', ''),
-                'pagemap': {'note': 'pagemap disabled'}
+                'pagemap': item.get('pagemap', {})
             }
             results.append(result)
         

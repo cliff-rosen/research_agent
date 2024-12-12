@@ -5,7 +5,9 @@ export interface SearchResult {
     link: string;
     snippet: string;
     displayLink: string;
-    pagemap: Record<string, any>;
+    pagemap?: {
+        [key: string]: any;
+    };
 }
 
 export const searchApi = {

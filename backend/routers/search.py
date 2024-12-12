@@ -38,7 +38,7 @@ async def search(
     """
     logger.info(f"search_topics endpoint called with query: {query}")
     results = await search_service.search(db, query, current_user.user_id)
-    # Convert Pydantic models to dictionaries
-    return [result.model_dump() for result in results]
+    # Return the full result objects including pagemap
+    return results
 
 

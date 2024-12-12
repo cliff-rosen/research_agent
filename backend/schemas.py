@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from enum import Enum
 
 ##### USER SCHEMA #####
@@ -55,4 +55,4 @@ class SearchResult(BaseModel):
     link: str = Field(description="Link to the search result")
     snippet: str = Field(description="Snippet of the search result")
     displayLink: str = Field(description="Display link of the search result")
-    pagemap: dict = Field(description="Pagemap of the search result")
+    pagemap: Optional[Dict[str, Any]] = {}
