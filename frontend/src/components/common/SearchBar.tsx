@@ -1,5 +1,11 @@
 import React, { useState } from 'react';
-import { searchApi, SearchResult } from '../../lib/api/searchApi';
+import { topicsApi } from '../../lib/api/topicsApi';
+
+interface SearchResult {
+    topic_id: number;
+    topic_name: string;
+    matched_content: string;
+}
 
 export const SearchBar: React.FC = () => {
     const [query, setQuery] = useState('');
@@ -15,10 +21,10 @@ export const SearchBar: React.FC = () => {
         setError('');
 
         try {
-            const searchResults = await searchApi.search(query);
+            const searchResults = await topicsApi.searchTopics(query);
             setResults(searchResults);
         } catch (err) {
-            setError(searchApi.handleError(err));
+            setError(topicsApi.handleError(err));
             console.error('Search error:', err);
         } finally {
             setIsLoading(false);
@@ -62,17 +68,9 @@ export const SearchBar: React.FC = () => {
                                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                                     {result.topic_name}
                                 </h3>
-                                <div className="mt-1">
-                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        Relevance: {(result.relevance_score * 100).toFixed(0)}%
-                                    </span>
-                                </div>
                                 <p className="mt-2 text-gray-600 dark:text-gray-400">
                                     {result.matched_content}
                                 </p>
-                                <div className="mt-2 text-sm text-gray-500 dark:text-gray-500">
-                                    Source: {result.source}
-                                </div>
                             </li>
                         ))}
                     </ul>
