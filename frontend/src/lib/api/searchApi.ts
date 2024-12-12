@@ -5,6 +5,7 @@ export interface SearchResult {
     link: string;
     snippet: string;
     displayLink: string;
+    relevance_score: number;
     pagemap?: {
         [key: string]: any;
     };

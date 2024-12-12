@@ -71,6 +71,9 @@ export const SearchBar: React.FC = () => {
                                     <div className="text-sm text-green-700 dark:text-green-400 mt-1">
                                         {result.displayLink}
                                     </div>
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                                        Relevance: {result.relevance_score.toFixed(1)}%
+                                    </div>
                                     <p className="mt-2 text-gray-600 dark:text-gray-400">
                                         {result.snippet}
                                     </p>
