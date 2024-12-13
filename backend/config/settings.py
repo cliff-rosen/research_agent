@@ -1,8 +1,9 @@
 from pydantic_settings import BaseSettings
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
-load_dotenv()
+# Force reload of environment variables
+load_dotenv(override=True)
 
 class Settings(BaseSettings):
     APP_NAME: str = "Research Agent"
@@ -26,7 +27,8 @@ class Settings(BaseSettings):
     GOOGLE_SEARCH_API_KEY: str = os.getenv("GOOGLE_SEARCH_API_KEY")
     GOOGLE_SEARCH_ENGINE_ID: str = os.getenv("GOOGLE_SEARCH_ENGINE_ID")
     GOOGLE_SEARCH_NUM_RESULTS: int = 10
-    
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
+
     # CORS settings
     CORS_ORIGINS: list[str] = ["*"]  # In production, specify exact origins
     CORS_ALLOW_CREDENTIALS: bool = True
@@ -48,5 +50,29 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        env_file_encoding = 'utf-8'
 
-settings = Settings() 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Ensure API keys are set
+        if not self.OPENAI_API_KEY:
+            raise ValueError("OPENAI_API_KEY not found in environment variables")
+        if not self.GOOGLE_SEARCH_API_KEY:
+            raise ValueError("GOOGLE_SEARCH_API_KEY not found in environment variables")
+        if not self.GOOGLE_SEARCH_ENGINE_ID:
+            raise ValueError("GOOGLE_SEARCH_ENGINE_ID not found in environment variables")
+        
+        # Set environment variables
+        os.environ["OPENAI_API_KEY"] = self.OPENAI_API_KEY
+        os.environ["GOOGLE_API_KEY"] = self.GOOGLE_SEARCH_API_KEY
+        os.environ["GOOGLE_CSE_ID"] = self.GOOGLE_SEARCH_ENGINE_ID
+
+settings = Settings()
+
+# Debug print to verify API keys are loaded
+if __name__ == "__main__":
+    print(f"OpenAI API Key loaded: {bool(settings.OPENAI_API_KEY)}")
+    print(f"Google API Key loaded: {bool(settings.GOOGLE_SEARCH_API_KEY)}")
+    print(f"Google CSE ID loaded: {bool(settings.GOOGLE_SEARCH_ENGINE_ID)}")
+    print(f"First few chars of OpenAI key: {settings.OPENAI_API_KEY[:10] if settings.OPENAI_API_KEY else 'No key found'}")
+    print(f"First few chars of Google key: {settings.GOOGLE_SEARCH_API_KEY[:10] if settings.GOOGLE_SEARCH_API_KEY else 'No key found'}") 
