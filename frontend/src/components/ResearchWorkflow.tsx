@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { researchApi, QuestionAnalysis, SearchResult } from '../lib/api/researchApi';
 import QuestionExpansion from '../components/QuestionExpansion';
+import SourceReview from './SourceReview';
 
 interface WorkflowStep {
     label: string;
@@ -213,42 +214,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                     </div>
                 );
             case 3:
-                return (
-                    <div className="space-y-6">
-                        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                            Source Review
-                        </h2>
-                        {searchResults.length > 0 && (
-                            <div className="mt-4 space-y-4">
-                                {searchResults.map((result) => (
-                                    <div key={result.link}
-                                        className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700"
-                                    >
-                                        <h3 className="text-lg font-medium mb-1">
-                                            <a
-                                                href={result.link}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                                            >
-                                                {result.title}
-                                            </a>
-                                        </h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                                            {result.displayLink}
-                                        </p>
-                                        <p className="text-gray-700 dark:text-gray-300 mb-2">
-                                            {result.snippet}
-                                        </p>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                                            Relevance Score: {result.relevance_score.toFixed(2)}
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                );
+                return <SourceReview searchResults={searchResults} />;
             default:
                 return (
                     <div className="p-4">

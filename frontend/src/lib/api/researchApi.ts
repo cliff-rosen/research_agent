@@ -10,6 +10,8 @@ export interface QuestionAnalysis {
 
 export type AnalyzeQuestionResponse = QuestionAnalysis;
 
+export type { SearchResult };
+
 export const researchApi = {
     analyzeQuestion: async (question: string): Promise<AnalyzeQuestionResponse> => {
         try {
