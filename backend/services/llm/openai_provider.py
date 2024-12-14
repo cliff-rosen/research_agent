@@ -33,13 +33,21 @@ class OpenAIProvider(LLMProvider):
     async def create_chat_completion(self, 
         messages: List[Dict[str, str]], 
         model: Optional[str] = None,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        system: Optional[str] = None
     ) -> str:
         try:
             model = model or self.get_default_model()
+            
+            # Add system message if provided
+            chat_messages = []
+            if system:
+                chat_messages.append({"role": "system", "content": system})
+            chat_messages.extend(messages)
+            
             response = await self.client.chat.completions.create(
                 model=model,
-                messages=messages,
+                messages=chat_messages,
                 max_tokens=max_tokens
             )
             return response.choices[0].message.content

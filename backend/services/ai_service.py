@@ -24,11 +24,37 @@ Focus on questions that:
 - Have potential for conflicting information
 - Need specific, detailed answers with evidence
 
-Provide your analysis in a structured format with these exact keys:
-- key_components
-- scope_boundaries
-- success_criteria
-- conflicting_viewpoints"""
+IMPORTANT: Your response must be a valid JSON object with these exact keys:
+- key_components: array of strings
+- scope_boundaries: array of strings
+- success_criteria: array of strings
+- conflicting_viewpoints: array of strings
+
+Example response format:
+{
+    "key_components": [
+        "Impact of technology on education",
+        "Remote learning effectiveness",
+        "Student engagement metrics"
+    ],
+    "scope_boundaries": [
+        "K-12 education focus",
+        "Last 5 years of research",
+        "US educational system context"
+    ],
+    "success_criteria": [
+        "Quantifiable learning outcomes",
+        "Student satisfaction metrics",
+        "Teacher feedback analysis"
+    ],
+    "conflicting_viewpoints": [
+        "Screen time impact debate",
+        "Traditional vs digital methods",
+        "Socioeconomic access disparities"
+    ]
+}
+
+Do not include any explanatory text, only return the JSON object."""
 
 SCORE_RESULTS_PROMPT = """You are an expert at evaluating search results for relevance to a query.
 For each search result, analyze its relevance to the query and provide a score from 0-100 where:
@@ -102,51 +128,47 @@ class AIService:
         """
         try:
             messages = [
-                {"role": "system", "content": ANALYZE_QUESTION_PROMPT},
                 {"role": "user", "content": f"Analyze this question: {question}"}
             ]
             
             content = await self.provider.create_chat_completion(
                 messages=messages,
+                system=ANALYZE_QUESTION_PROMPT,
                 model=model
             )
             
-            # Initialize default structure
-            analysis = {
-                "key_components": [],
-                "scope_boundaries": [],
-                "success_criteria": [],
-                "conflicting_viewpoints": []
-            }
-            
-            # Parse the content into our structure
-            current_section = None
-            for line in content.split('\n'):
-                line = line.strip()
-                if not line:
-                    continue
-                    
-                # Check for section headers
-                if line.lower().startswith('key components'):
-                    current_section = "key_components"
-                    continue
-                elif line.lower().startswith('scope boundaries'):
-                    current_section = "scope_boundaries"
-                    continue
-                elif line.lower().startswith('success criteria'):
-                    current_section = "success_criteria"
-                    continue
-                elif line.lower().startswith('conflicting viewpoints'):
-                    current_section = "conflicting_viewpoints"
-                    continue
-                    
-                # Add content to current section if it starts with a list marker
-                if current_section and (line.startswith('-') or line.startswith('•')):
-                    item = line.lstrip('- •').strip()
-                    if item:
-                        analysis[current_section].append(item)
+            try:
+                # Clean the response string
+                response_text = content.strip()
+                if response_text.startswith('```json'):
+                    response_text = response_text.split('```')[1].strip()
+                elif response_text.startswith('```'):
+                    response_text = response_text.split('```')[1].strip()
+                
+                # Parse JSON response
+                import json
+                analysis = json.loads(response_text)
+                
+                # Validate the structure
+                required_keys = ["key_components", "scope_boundaries", "success_criteria", "conflicting_viewpoints"]
+                for key in required_keys:
+                    if key not in analysis:
+                        logger.warning(f"Missing required key in analysis response: {key}")
+                        analysis[key] = []
+                    elif not isinstance(analysis[key], list):
+                        logger.warning(f"Invalid type for key {key}, expected list but got {type(analysis[key])}")
+                        analysis[key] = []
+                
+                return analysis
 
-            return analysis
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parsing analysis JSON response: {str(e)}\nResponse: {content}")
+                return {
+                    "key_components": [],
+                    "scope_boundaries": [],
+                    "success_criteria": [],
+                    "conflicting_viewpoints": []
+                }
 
         except Exception as e:
             logger.error(f"Error in analyze_question_scope: {str(e)}")

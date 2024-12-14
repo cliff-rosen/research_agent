@@ -1,16 +1,11 @@
 from sqlalchemy.orm import Session
 import logging
-from typing import List, Dict, Optional, TypedDict
+from typing import List
 from config.settings import settings
 from services.ai_service import ai_service
+from schemas import QuestionAnalysis
 
 logger = logging.getLogger(__name__)
-
-class QuestionAnalysis(TypedDict):
-    key_components: List[str]
-    scope_boundaries: List[str]
-    success_criteria: List[str]
-    conflicting_viewpoints: List[str]
 
 class ResearchService:
     def __init__(self):
@@ -47,7 +42,7 @@ class ResearchService:
             question (str): The question to analyze
 
         Returns:
-            QuestionAnalysis: Dictionary containing the analysis components
+            QuestionAnalysis: Pydantic model containing the analysis components
         """
         try:
             logger.info(f"Analyzing question: {question}")
@@ -55,7 +50,7 @@ class ResearchService:
             # Use AI service to analyze the question
             analysis = await ai_service.analyze_question_scope(question)
             
-            # Ensure we have all required components with defaults if missing
+            # Create QuestionAnalysis model instance
             result = QuestionAnalysis(
                 key_components=analysis.get('key_components', []),
                 scope_boundaries=analysis.get('scope_boundaries', []),

@@ -62,3 +62,23 @@ class SearchResult(BaseModel):
         ge=0.0,
         le=100.0
     )
+
+
+##### RESEARCH SCHEMA #####
+
+class QuestionAnalysis(BaseModel):
+    """Schema for question analysis results"""
+    key_components: List[str] = Field(
+        description="Key components identified in the question"
+    )
+    scope_boundaries: List[str] = Field(
+        description="Identified boundaries and scope of the question"
+    )
+    success_criteria: List[str] = Field(
+        description="Criteria for a successful answer"
+    )
+    conflicting_viewpoints: List[str] = Field(
+        description="Potential conflicting viewpoints to consider"
+    )
+
+    model_config = ConfigDict(from_attributes=True)

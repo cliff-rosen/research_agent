@@ -22,7 +22,8 @@ class LLMProvider(ABC):
     async def create_chat_completion(self, 
         messages: List[Dict[str, str]], 
         model: Optional[str] = None,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        system: Optional[str] = None
     ) -> str:
         """Generate a chat completion response"""
         pass
