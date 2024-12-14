@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { researchApi, QuestionAnalysis } from '../lib/api/researchApi';
+import { researchApi, QuestionAnalysis, SearchResult } from '../lib/api/researchApi';
+import QuestionExpansion from '../components/QuestionExpansion';
 
 interface WorkflowStep {
     label: string;
@@ -40,6 +41,8 @@ const ResearchWorkflow: React.FC = () => {
     const [analysis, setAnalysis] = useState<QuestionAnalysis | null>(null);
     const [expandedQueries, setExpandedQueries] = useState<string[]>([]);
     const [error, setError] = useState<string>('');
+    const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
 
     const handleNext = () => {
         setActiveStep((prev) => prev + 1);
@@ -66,7 +69,7 @@ const ResearchWorkflow: React.FC = () => {
 
     const handleQueryExpansion = async () => {
         if (!analysis) return;
-        
+
         setIsLoading(true);
         setError('');
         try {
@@ -95,6 +98,20 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         }
     };
 
+    const handleSubmitQueries = async (queries: string[]) => {
+        try {
+            setIsSearching(true);
+            const results = await researchApi.executeQueries(queries);
+            setSearchResults(results);
+            handleNext();
+        } catch (error) {
+            console.error('Error executing queries:', error);
+            setError('Failed to execute search queries. Please try again.');
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
     const renderStepContent = (step: number) => {
         switch (step) {
             case 0:
@@ -113,11 +130,10 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                             <div className="text-red-500 text-sm">{error}</div>
                         )}
                         <button
-                            className={`px-4 py-2 rounded-lg text-white ${
-                                isLoading || !question.trim()
+                            className={`px-4 py-2 rounded-lg text-white ${isLoading || !question.trim()
                                     ? 'bg-gray-400 cursor-not-allowed'
                                     : 'bg-blue-600 hover:bg-blue-700'
-                            }`}
+                                }`}
                             onClick={handleQuestionSubmit}
                             disabled={!question.trim() || isLoading}
                         >
@@ -166,9 +182,8 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                             </div>
                             <div className="pt-4">
                                 <button
-                                    className={`px-4 py-2 rounded-lg text-white ${
-                                        isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                                    }`}
+                                    className={`px-4 py-2 rounded-lg text-white ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                                        }`}
                                     onClick={handleQueryExpansion}
                                     disabled={isLoading}
                                 >
@@ -188,19 +203,50 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                         <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
                             Expanded Search Queries
                         </h2>
-                        <div className="space-y-4">
-                            <p className="text-gray-600 dark:text-gray-400">
-                                Based on your question and its analysis, here are the expanded search queries:
-                            </p>
-                            <ul className="list-disc pl-5 space-y-1">
-                                {expandedQueries.map((query, index) => (
-                                    <li key={index} className="text-gray-600 dark:text-gray-400">{query}</li>
+                        <QuestionExpansion 
+                            question={question}
+                            analysis={analysis!}
+                            onSubmit={handleSubmitQueries}
+                            expandedQueries={expandedQueries}
+                            isSearching={isSearching}
+                        />
+                    </div>
+                );
+            case 3:
+                return (
+                    <div className="space-y-6">
+                        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                            Source Review
+                        </h2>
+                        {searchResults.length > 0 && (
+                            <div className="mt-4 space-y-4">
+                                {searchResults.map((result) => (
+                                    <div key={result.link}
+                                        className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700"
+                                    >
+                                        <h3 className="text-lg font-medium mb-1">
+                                            <a
+                                                href={result.link}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                                            >
+                                                {result.title}
+                                            </a>
+                                        </h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                                            {result.displayLink}
+                                        </p>
+                                        <p className="text-gray-700 dark:text-gray-300 mb-2">
+                                            {result.snippet}
+                                        </p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                                            Relevance Score: {result.relevance_score.toFixed(2)}
+                                        </p>
+                                    </div>
                                 ))}
-                            </ul>
-                            {error && (
-                                <div className="text-red-500 text-sm">{error}</div>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
                 );
             default:

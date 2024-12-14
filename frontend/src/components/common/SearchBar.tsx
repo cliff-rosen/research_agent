@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { searchApi, SearchResult } from '../../lib/api/searchApi';
-import { researchApi, AnalyzeQuestionResponse } from '../../lib/api/researchApi';
+import { SearchResult } from '../../lib/api/searchApi';
+import { researchApi, QuestionAnalysis } from '../../lib/api/researchApi';
 
 export const SearchBar: React.FC = () => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    const [analysis, setAnalysis] = useState<AnalyzeQuestionResponse | null>(null);
+    const [analysis, setAnalysis] = useState<QuestionAnalysis | null>(null);
 
     const handleQuestionSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -22,17 +22,12 @@ export const SearchBar: React.FC = () => {
             const analysisResult = await researchApi.analyzeQuestion(query);
             setAnalysis(analysisResult);
 
-            // Then perform searches for each suggested query
-            const searchPromises = analysisResult.suggested_queries.map(q => searchApi.search(q));
-            const searchResults = await Promise.all(searchPromises);
+            // Then expand the question into multiple queries
+            const expandedQueries = await researchApi.expandQuestion(query);
 
-            // Combine and deduplicate results
-            const allResults = searchResults.flat();
-            const uniqueResults = allResults.filter((result, index) => {
-                return allResults.findIndex(r => r.link === result.link) === index;
-            });
-
-            setResults(uniqueResults);
+            // Execute all queries at once
+            const searchResults = await researchApi.executeQueries(expandedQueries);
+            setResults(searchResults);
         } catch (err) {
             setError(researchApi.handleError(err));
             console.error('Search error:', err);
@@ -75,18 +70,39 @@ export const SearchBar: React.FC = () => {
                     <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-200 mb-2">
                         Analysis
                     </h3>
-                    <p className="text-blue-700 dark:text-blue-300 mb-2">
-                        {analysis.analysis}
-                    </p>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                        {analysis.suggested_queries.map((query, index) => (
-                            <span 
-                                key={index}
-                                className="px-2 py-1 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 rounded-full text-sm"
-                            >
-                                {query}
-                            </span>
-                        ))}
+                    <div className="space-y-4">
+                        <div>
+                            <h4 className="font-medium text-blue-700 dark:text-blue-300">Key Components</h4>
+                            <ul className="list-disc list-inside text-blue-600 dark:text-blue-400">
+                                {analysis.key_components.map((item, index) => (
+                                    <li key={index}>{item}</li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="font-medium text-blue-700 dark:text-blue-300">Scope Boundaries</h4>
+                            <ul className="list-disc list-inside text-blue-600 dark:text-blue-400">
+                                {analysis.scope_boundaries.map((item, index) => (
+                                    <li key={index}>{item}</li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="font-medium text-blue-700 dark:text-blue-300">Success Criteria</h4>
+                            <ul className="list-disc list-inside text-blue-600 dark:text-blue-400">
+                                {analysis.success_criteria.map((item, index) => (
+                                    <li key={index}>{item}</li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="font-medium text-blue-700 dark:text-blue-300">Potential Conflicts</h4>
+                            <ul className="list-disc list-inside text-blue-600 dark:text-blue-400">
+                                {analysis.conflicting_viewpoints.map((item, index) => (
+                                    <li key={index}>{item}</li>
+                                ))}
+                            </ul>
+                        </div>
                     </div>
                 </div>
             )}

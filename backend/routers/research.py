@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Body
 from sqlalchemy.orm import Session
 from typing import List, Dict, TypedDict
 from pydantic import BaseModel
 from database import get_db
 from services import auth_service
 from services.research_service import research_service
+from schemas import SearchResult
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,10 @@ class QuestionAnalysisResponse(BaseModel):
     scope_boundaries: List[str]
     success_criteria: List[str]
     conflicting_viewpoints: List[str]
+
+
+class ExecuteQueriesRequest(BaseModel):
+    queries: List[str]
 
 
 @router.get(
@@ -121,4 +126,34 @@ async def expand_question(
     expanded_queries = await research_service.expand_question(question)
 
     return expanded_queries
+
+@router.post(
+    "/execute-queries",
+    response_model=List[SearchResult],
+    summary="Execute multiple search queries and collate results",
+    responses={
+        200: {
+            "description": "Search results successfully retrieved and collated",
+            "model": List[SearchResult]
+        },
+        401: {"description": "Not authenticated"}
+    }
+)
+async def execute_queries(
+    request: ExecuteQueriesRequest,
+    current_user = Depends(auth_service.validate_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Execute multiple search queries and return collated, deduplicated results
+    
+    Parameters:
+    - **queries**: List of search queries to execute
+    
+    Returns a list of unique search results from all queries, sorted by relevance.
+    """
+    # Take only the first 3 queries
+    queries = request.queries[:3]
+    logger.info(f"execute_queries endpoint called with {len(queries)} queries (limited to first 3)")
+    return await research_service.execute_queries(db, queries, current_user.user_id)
 

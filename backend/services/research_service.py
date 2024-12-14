@@ -1,16 +1,73 @@
 from sqlalchemy.orm import Session
 import logging
-from typing import List
+from typing import List, Dict, Optional, TypedDict
 from config.settings import settings
 from services.ai_service import ai_service
-from schemas import QuestionAnalysis
+from services.search_service import google_search, score_and_rank_results
+from schemas import SearchResult
 
 logger = logging.getLogger(__name__)
 
+class QuestionAnalysis(TypedDict):
+    key_components: List[str]
+    scope_boundaries: List[str]
+    success_criteria: List[str]
+    conflicting_viewpoints: List[str]
 
 class ResearchService:
     def __init__(self):
         self.search_wrapper = None
+
+    async def execute_queries(self, db: Session, queries: List[str], user_id: int) -> List[SearchResult]:
+        """
+        Execute multiple search queries and return collated, deduplicated results.
+
+        Args:
+            db (Session): Database session
+            queries (List[str]): List of search queries to execute
+            user_id (int): ID of the user performing the search
+
+        Returns:
+            List[SearchResult]: List of unique search results from all queries, sorted by relevance
+        """
+        try:
+            logger.info(f"Executing {len(queries)} queries")
+            
+            # Execute all queries in parallel
+            all_results = []
+            for query in queries:
+                results = await google_search(query)
+                # Convert to SearchResult objects
+                search_results = [
+                    SearchResult(
+                        title=result["title"],
+                        link=result["link"],
+                        snippet=result["snippet"],
+                        displayLink=result["displayLink"],
+                        pagemap=result["pagemap"],
+                        relevance_score=0.0  # Initialize score
+                    )
+                    for result in results
+                ]
+                # Score results for this query
+                scored_results = await score_and_rank_results(query, search_results)
+                all_results.extend(scored_results)
+
+            # Deduplicate results by link, keeping the highest scored version
+            unique_results = {}
+            for result in all_results:
+                if result.link not in unique_results or result.relevance_score > unique_results[result.link].relevance_score:
+                    unique_results[result.link] = result
+
+            # Convert back to list and sort by relevance score
+            final_results = list(unique_results.values())
+            final_results.sort(key=lambda x: x.relevance_score, reverse=True)
+
+            return final_results
+
+        except Exception as e:
+            logger.error(f"Error executing queries: {str(e)}")
+            return []
 
     async def analyze_question_scope(self, question: str) -> QuestionAnalysis:
         """

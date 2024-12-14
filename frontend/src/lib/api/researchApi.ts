@@ -1,4 +1,5 @@
 import { api, handleApiError } from './index'
+import { SearchResult } from './searchApi'
 
 export interface QuestionAnalysis {
     key_components: string[];
@@ -22,6 +23,15 @@ export const researchApi = {
     expandQuestion: async (question: string): Promise<string[]> => {
         try {
             const response = await api.get(`/api/research/expand-question?question=${encodeURIComponent(question)}`);
+            return response.data;
+        } catch (error) {
+            throw handleApiError(error);
+        }
+    },
+
+    executeQueries: async (queries: string[]): Promise<SearchResult[]> => {
+        try {
+            const response = await api.post('/api/research/execute-queries', { queries });
             return response.data;
         } catch (error) {
             throw handleApiError(error);
