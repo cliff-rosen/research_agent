@@ -172,3 +172,37 @@ async def search(db: Session, query: str, user_id: int = 0) -> List[SearchResult
     except Exception as e:
         logger.error(f"Error performing Google search: {str(e)}")
         return []
+
+async def search_1(query: str) -> List[SearchResult]:
+    collected_pages = {}
+    kb = []
+    
+    # build collected_pages from query
+    query_list = expand_query(query)
+    urls = get_urls_from_query_list(query_list)
+    for url in urls:
+        page = get_page_from_url(url)
+        collected_pages[url] = page
+
+    # build kb from collected_pages
+    for page in collected_pages:
+        relevant_info = get_relevant_info_from_page(query, page)
+        kb.append(relevant_info)
+
+async def expand_query(query: str) -> List[str]:
+    # use ai_service to expand query
+    query_expansion = await ai_service.expand_query(query)
+    return query_expansion
+
+async def  get_urls_from_query_list(query_list: List[str]) -> List[str]:
+    # TODO: implement this
+    return []
+
+async def get_page_from_url(url: str) -> str:
+    # TODO: implement this
+    return ""
+
+async def get_relevant_info_from_page(query: str, page: str) -> str:
+    # TODO: implement this
+    return ""
+
