@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional
 import aiohttp
 from config.settings import settings
 from schemas import SearchResult
@@ -80,60 +80,6 @@ async def google_search(query: str,
         return []
 
 
-async def score_results(query: str, results: List[SearchResult]) -> List[SearchResult]:
-    """
-    Score search results using the AI model to determine relevance to the query
-
-    Args:
-        query (str): The original search query
-        results (List[SearchResult]): List of search results to score
-
-    Returns:
-        List[SearchResult]: Scored and sorted search results
-    """
-    if not results:
-        return results
-
-    # Prepare results for AI scoring
-    results_text = "\n".join([
-        f"Title: {r.title}\nURL: {r.link}\nSnippet: {r.snippet}\n"
-        for r in results
-    ])
-
-    prompt = f"""Given the search query: "{query}"
-
-Please analyze these search results and assign a relevance score from 0-100 for each result based on how well it answers or relates to the query. 
-Consider factors like:
-- Direct relevance to the query topic
-- Information completeness
-- Source credibility
-- Content freshness (if apparent)
-
-Respond with only numbers separated by newlines, one score per result:
-
-{results_text}"""
-
-    try:
-        # Get scores from AI
-        scores_text = await ai_service.generate(prompt, max_tokens=500)
-        scores = [float(score.strip())
-                  for score in scores_text.strip().split('\n')]
-
-        # Pair results with scores and sort
-        scored_results = list(zip(results, scores))
-        scored_results.sort(key=lambda x: x[1], reverse=True)
-
-        # Update results with scores and return sorted list
-        for result, score in scored_results:
-            result.relevance_score = score
-
-        return [result for result, _ in scored_results]
-
-    except Exception as e:
-        logger.error(f"Error scoring results: {str(e)}")
-        return results
-
-
 async def search(db: Session, query: str, user_id: int = 0) -> List[SearchResult]:
     """
     Perform web search for the given query using Google Custom Search API
@@ -166,43 +112,57 @@ async def search(db: Session, query: str, user_id: int = 0) -> List[SearchResult
         ]
 
         # Score and sort results
-        scored_results = await score_results(query, search_results)
+        scored_results = await score_and_rank_results(query, search_results)
         return scored_results
 
     except Exception as e:
         logger.error(f"Error performing Google search: {str(e)}")
         return []
 
-async def search_1(query: str) -> List[SearchResult]:
-    collected_pages = {}
-    kb = []
-    
-    # build collected_pages from query
-    query_list = expand_query(query)
-    urls = get_urls_from_query_list(query_list)
-    for url in urls:
-        page = get_page_from_url(url)
-        collected_pages[url] = page
 
-    # build kb from collected_pages
-    for page in collected_pages:
-        relevant_info = get_relevant_info_from_page(query, page)
-        kb.append(relevant_info)
+async def score_and_rank_results(query: str, results: List[SearchResult]) -> List[SearchResult]:
+    """
+    Score and rank search results based on relevance to the query.
 
-async def expand_query(query: str) -> List[str]:
-    # use ai_service to expand query
-    query_expansion = await ai_service.expand_query(query)
-    return query_expansion
+    Args:
+        query (str): The search query
+        results (List[SearchResult]): List of search results to score
 
-async def  get_urls_from_query_list(query_list: List[str]) -> List[str]:
-    # TODO: implement this
-    return []
+    Returns:
+        List[SearchResult]: Scored and ranked results
+    """
+    try:
+        # Convert SearchResult objects to dictionaries for AI scoring
+        results_for_scoring = [
+            {
+                'url': result.link,
+                'content': f"Title: {result.title}\nSnippet: {result.snippet}"
+            }
+            for result in results
+        ]
 
-async def get_page_from_url(url: str) -> str:
-    # TODO: implement this
-    return ""
+        # Get scores from AI service
+        scores = await ai_service.score_results(query, results_for_scoring)
 
-async def get_relevant_info_from_page(query: str, page: str) -> str:
-    # TODO: implement this
-    return ""
+        # Create a map of url to score
+        score_map = {score['url']: score['score'] for score in scores}
+
+        # Add scores to results
+        scored_results = []
+        for result in results:
+            result_copy = result.copy()
+            result_copy.relevance_score = score_map.get(result.link, 50.0)
+            scored_results.append(result_copy)
+
+        # Sort by score in descending order
+        scored_results.sort(key=lambda x: x.relevance_score, reverse=True)
+
+        return scored_results
+
+    except Exception as e:
+        logger.error(f"Error scoring results: {str(e)}")
+        # Return original results with default score if scoring fails
+        for result in results:
+            result.relevance_score = 50.0
+        return results
 
