@@ -24,13 +24,9 @@ class LLMProvider(ABC):
         self,
         messages: List[Dict[str, str]],
         model: Optional[str] = None,
-<<<<<<< HEAD
         max_tokens: Optional[int] = None,
-        system: Optional[str] = None
-=======
         system: Optional[str] = None,
         **kwargs: Any
->>>>>>> 943675de674dba8cb36a3fe628909a3ab50db119
     ) -> str:
         """Create a chat completion with the given messages"""
         raise NotImplementedError
