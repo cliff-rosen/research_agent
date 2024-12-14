@@ -4,6 +4,7 @@ from config.settings import settings
 from .llm.base import LLMProvider
 from .llm.anthropic_provider import AnthropicProvider
 from .llm.openai_provider import OpenAIProvider
+from schemas import QuestionAnalysis
 
 logger = logging.getLogger(__name__)
 
@@ -121,13 +122,16 @@ class AIService:
     async def analyze_question_scope(self,
                                      question: str,
                                      model: Optional[str] = None
-                                     ) -> Dict[str, List[str]]:
+                                     ) -> QuestionAnalysis:
         """
         Analyze a question to determine its key components, scope, and success criteria.
-
+        
         Args:
             question: The question to analyze
             model: Optional specific model to use
+            
+        Returns:
+            QuestionAnalysis: Pydantic model containing the analysis components
         """
         try:
             messages = [
@@ -148,39 +152,37 @@ class AIService:
                 elif response_text.startswith('```'):
                     response_text = response_text.split('```')[1].strip()
                 
-                # Parse JSON response
+                # Parse JSON response and validate with Pydantic model
                 import json
-                analysis = json.loads(response_text)
+                analysis_dict = json.loads(response_text)
                 
-                # Validate the structure
-                required_keys = ["key_components", "scope_boundaries", "success_criteria", "conflicting_viewpoints"]
-                for key in required_keys:
-                    if key not in analysis:
-                        logger.warning(f"Missing required key in analysis response: {key}")
-                        analysis[key] = []
-                    elif not isinstance(analysis[key], list):
-                        logger.warning(f"Invalid type for key {key}, expected list but got {type(analysis[key])}")
-                        analysis[key] = []
+                # Create and validate with Pydantic model
+                result = QuestionAnalysis(
+                    key_components=analysis_dict.get('key_components', []),
+                    scope_boundaries=analysis_dict.get('scope_boundaries', []),
+                    success_criteria=analysis_dict.get('success_criteria', []),
+                    conflicting_viewpoints=analysis_dict.get('conflicting_viewpoints', [])
+                )
                 
-                return analysis
+                return result
 
             except json.JSONDecodeError as e:
                 logger.error(f"Error parsing analysis JSON response: {str(e)}\nResponse: {content}")
-                return {
-                    "key_components": [],
-                    "scope_boundaries": [],
-                    "success_criteria": [],
-                    "conflicting_viewpoints": []
-                }
+                return QuestionAnalysis(
+                    key_components=[],
+                    scope_boundaries=[],
+                    success_criteria=[],
+                    conflicting_viewpoints=[]
+                )
 
         except Exception as e:
             logger.error(f"Error in analyze_question_scope: {str(e)}")
-            return {
-                "key_components": [],
-                "scope_boundaries": [],
-                "success_criteria": [],
-                "conflicting_viewpoints": []
-            }
+            return QuestionAnalysis(
+                key_components=[],
+                scope_boundaries=[],
+                success_criteria=[],
+                conflicting_viewpoints=[]
+            )
 
     async def score_results(self,
                             query: str,

@@ -49,16 +49,8 @@ class ResearchService:
         try:
             logger.info(f"Analyzing question: {question}")
             
-            # Use AI service to analyze the question
-            analysis_dict = await ai_service.analyze_question_scope(question)
-            
-            # Create QuestionAnalysis model instance
-            result = QuestionAnalysis(
-                key_components=analysis_dict.get('key_components', []),
-                scope_boundaries=analysis_dict.get('scope_boundaries', []),
-                success_criteria=analysis_dict.get('success_criteria', []),
-                conflicting_viewpoints=analysis_dict.get('conflicting_viewpoints', [])
-            )
+            # Use AI service to analyze the question and get QuestionAnalysis model
+            result = await ai_service.analyze_question_scope(question)
             
             # Log analysis results using model attributes
             logger.info(
