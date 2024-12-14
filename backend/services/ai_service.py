@@ -12,11 +12,13 @@ You are a search query expansion expert that helps users find comprehensive info
 {query}\
 """
 
-ANALYZE_QUESTION_PROMPT = """You are an expert research analyst. Analyze the given question based on these criteria:
-1. Key Components: Identify the main elements that need to be addressed
-2. Scope Boundaries: Define clear limits and constraints for the investigation
-3. Success Criteria: Specify what constitutes a complete and satisfactory answer
-4. Conflicting Viewpoints: Identify potential areas of disagreement or different perspectives
+ANALYZE_QUESTION_PROMPT = """You are an expert research analyst. Analyze the given question and return a JSON object with these exact keys:
+{
+    "key_components": [list of main elements that need to be addressed],
+    "scope_boundaries": [list defining clear limits and constraints],
+    "success_criteria": [list specifying what constitutes a complete answer],
+    "conflicting_viewpoints": [list of potential areas of disagreement]
+}
 
 Focus on questions that:
 - Require multiple sources and synthesis of information
@@ -83,6 +85,7 @@ Example response format:
 
 Do not include any other text or explanation in your response, only the JSON array."""
 
+
 class AIService:
     def __init__(self):
         self.provider: LLMProvider = AnthropicProvider()
@@ -96,32 +99,32 @@ class AIService:
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 
-    async def expand_query(self, 
-        query: str, 
-        model: Optional[str] = None
-    ) -> List[str]:
+    async def expand_query(self,
+                           query: str,
+                           model: Optional[str] = None
+                           ) -> List[str]:
         """
         Expand a query into related queries
-        
+
         Args:
             query: The query to expand
             model: Optional specific model to use
         """
         prompt = EXPAND_QUERY_PROMPT.format(query=query)
         query_expansion = await self.provider.generate(
-            prompt=prompt, 
+            prompt=prompt,
             model=model,
             max_tokens=500
         )
         return query_expansion.split("\n")
 
-    async def analyze_question_scope(self, 
-        question: str,
-        model: Optional[str] = None
-    ) -> Dict[str, List[str]]:
+    async def analyze_question_scope(self,
+                                     question: str,
+                                     model: Optional[str] = None
+                                     ) -> Dict[str, List[str]]:
         """
         Analyze a question to determine its key components, scope, and success criteria.
-        
+
         Args:
             question: The question to analyze
             model: Optional specific model to use
@@ -179,11 +182,11 @@ class AIService:
                 "conflicting_viewpoints": []
             }
 
-    async def score_results(self, 
-        query: str, 
-        results: List[Dict[str, str]], 
-        model: Optional[str] = None
-    ) -> List[Dict[str, float]]:
+    async def score_results(self,
+                            query: str,
+                            results: List[Dict[str, str]],
+                            model: Optional[str] = None
+                            ) -> List[Dict[str, float]]:
         """Score search results based on relevance to the query."""
         try:
             logger.info(f"Scoring {len(results)} results for query: {query}")
@@ -213,84 +216,102 @@ class AIService:
                 # Clean the response string
                 response_text = response.strip()
                 if response_text.startswith('```json'):
-                    logger.debug("Detected JSON code block, extracting content")
+                    logger.debug(
+                        "Detected JSON code block, extracting content")
                     response_text = response_text.split('```')[1].strip()
                 elif response_text.startswith('```'):
                     logger.debug("Detected code block, extracting content")
                     response_text = response_text.split('```')[1].strip()
-                
+
                 logger.debug(f"Cleaned response text:\n{response_text}")
-                
+
                 # Parse the JSON response
                 import json
                 scores = json.loads(response_text)
                 logger.debug(f"Parsed JSON scores: {scores}")
 
                 if not isinstance(scores, list):
-                    logger.error(f"AI response is not a list. Type: {type(scores)}")
+                    logger.error(
+                        f"AI response is not a list. Type: {type(scores)}")
                     raise ValueError("Invalid response format")
 
                 # Validate and clean up scores
                 validated_scores = []
                 result_urls = {result['url'] for result in results}
                 logger.debug(f"Valid URLs: {result_urls}")
-                
+
                 for score in scores:
                     logger.debug(f"Processing score entry: {score}")
                     if not isinstance(score, dict):
-                        logger.warning(f"Skipping non-dict score entry: {score}")
+                        logger.warning(
+                            f"Skipping non-dict score entry: {score}")
                         continue
-                        
+
                     if 'url' not in score or 'score' not in score:
-                        logger.warning(f"Skipping score entry missing required fields: {score}")
+                        logger.warning(
+                            f"Skipping score entry missing required fields: {score}")
                         continue
-                        
+
                     if score['url'] not in result_urls:
-                        logger.warning(f"Skipping score for unknown URL: {score['url']}")
+                        logger.warning(
+                            f"Skipping score for unknown URL: {score['url']}")
                         continue
 
                     try:
                         # Ensure score is a number and within bounds
                         original_score = score['score']
-                        score['score'] = max(0, min(100, float(score['score'])))
+                        score['score'] = max(
+                            0, min(100, float(score['score'])))
                         if score['score'] != original_score:
-                            logger.info(f"Adjusted score for {score['url']} from {original_score} to {score['score']}")
+                            logger.info(
+                                f"Adjusted score for {score['url']} from {original_score} to {score['score']}")
                         validated_scores.append(score)
                         logger.debug(f"Validated score entry: {score}")
                     except (TypeError, ValueError):
-                        logger.error(f"Invalid score value for URL {score['url']}: {score.get('score')}")
+                        logger.error(
+                            f"Invalid score value for URL {score['url']}: {score.get('score')}")
                         continue
 
                 # Ensure we have scores for all results
                 if len(validated_scores) < len(results):
-                    logger.warning(f"Missing scores for some URLs. Found {len(validated_scores)} of {len(results)}")
-                    missing_urls = result_urls - {score['url'] for score in validated_scores}
+                    logger.warning(
+                        f"Missing scores for some URLs. Found {len(validated_scores)} of {len(results)}")
+                    missing_urls = result_urls - \
+                        {score['url'] for score in validated_scores}
                     for url in missing_urls:
                         default_score = {'url': url, 'score': 50.0}
                         validated_scores.append(default_score)
-                        logger.warning(f"Added default score for missing URL: {url}")
+                        logger.warning(
+                            f"Added default score for missing URL: {url}")
 
-                logger.info(f"Successfully scored {len(validated_scores)} results")
+                logger.info(
+                    f"Successfully scored {len(validated_scores)} results")
                 logger.debug(f"Final validated scores: {validated_scores}")
                 return validated_scores
 
             except json.JSONDecodeError as e:
-                logger.error(f"Error parsing score results JSON: {str(e)}\nResponse: {response}")
-                default_scores = [{'url': result['url'], 'score': 50.0} for result in results]
-                logger.info(f"Returning default scores for {len(default_scores)} results")
+                logger.error(
+                    f"Error parsing score results JSON: {str(e)}\nResponse: {response}")
+                default_scores = [{'url': result['url'],
+                                   'score': 50.0} for result in results]
+                logger.info(
+                    f"Returning default scores for {len(default_scores)} results")
                 return default_scores
 
         except Exception as e:
             logger.error(f"Error in score_results: {str(e)}", exc_info=True)
-            default_scores = [{'url': result['url'], 'score': 50.0} for result in results]
-            logger.info(f"Returning default scores for {len(default_scores)} results")
+            default_scores = [{'url': result['url'], 'score': 50.0}
+                              for result in results]
+            logger.info(
+                f"Returning default scores for {len(default_scores)} results")
             return default_scores
 
     async def close(self):
         """Cleanup method to close the provider session"""
         await self.provider.close()
 
+
 # Create a singleton instance
 ai_service = AIService()
 
-__all__ = ['ai_service'] 
+__all__ = ['ai_service']

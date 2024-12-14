@@ -7,6 +7,7 @@ from schemas import QuestionAnalysis
 
 logger = logging.getLogger(__name__)
 
+
 class ResearchService:
     def __init__(self):
         self.search_wrapper = None
@@ -24,30 +25,32 @@ class ResearchService:
         try:
             logger.info(f"Expanding question: {question}")
             expanded_queries = await ai_service.expand_query(question)
-            
+
             # Filter out empty queries and strip whitespace
-            filtered_queries = [q.strip() for q in expanded_queries if q.strip()]
-            
+            filtered_queries = [q.strip()
+                                for q in expanded_queries if q.strip()]
+
             return filtered_queries
 
         except Exception as e:
             logger.error(f"Error expanding question: {str(e)}")
             return []
 
-    async def analyze_question(self, question: str) -> QuestionAnalysis:
+    async def analyze_question_scope(self, question: str) -> QuestionAnalysis:
         """
-        Analyze a question to identify its core components, scope, and success criteria.
+        Analyze a question to determine its key components, scope, and success criteria.
 
         Args:
-            question (str): The question to analyze
+            question: The question to analyze
 
         Returns:
             QuestionAnalysis: Pydantic model containing the analysis components
         """
         try:
-            logger.info(f"Analyzing question: {question}")
-            
+            logger.info(f"Starting analysis for question: {question}")
+
             # Use AI service to analyze the question
+            logger.debug("Calling AI service for question analysis...")
             analysis = await ai_service.analyze_question_scope(question)
             
             # Create QuestionAnalysis model instance
@@ -55,13 +58,29 @@ class ResearchService:
                 key_components=analysis.get('key_components', []),
                 scope_boundaries=analysis.get('scope_boundaries', []),
                 success_criteria=analysis.get('success_criteria', []),
-                conflicting_viewpoints=analysis.get('conflicting_viewpoints', [])
+                conflicting_viewpoints=analysis.get(
+                    'conflicting_viewpoints', [])
             )
-            
+
+            # Log the components we found
+            logger.info(f"Analysis complete. Found {len(result['key_components'])} key components, "
+                        f"{len(result['scope_boundaries'])} scope boundaries, "
+                        f"{len(result['success_criteria'])} success criteria, and "
+                        f"{len(result['conflicting_viewpoints'])} conflicting viewpoints")
+
+            # Log detailed results at debug level
+            logger.debug("Analysis results:")
+            logger.debug(f"Key components: {result['key_components']}")
+            logger.debug(f"Scope boundaries: {result['scope_boundaries']}")
+            logger.debug(f"Success criteria: {result['success_criteria']}")
+            logger.debug(
+                f"Conflicting viewpoints: {result['conflicting_viewpoints']}")
+
             return result
 
         except Exception as e:
-            logger.error(f"Error analyzing question: {str(e)}")
+            logger.error(f"Error analyzing question: {str(e)}", exc_info=True)
+            logger.info("Returning empty analysis due to error")
             return QuestionAnalysis(
                 key_components=[],
                 scope_boundaries=[],
@@ -69,8 +88,9 @@ class ResearchService:
                 conflicting_viewpoints=[]
             )
 
+
 # Create a singleton instance
 research_service = ResearchService()
 
 # Export the singleton instance
-__all__ = ['research_service'] 
+__all__ = ['research_service']
