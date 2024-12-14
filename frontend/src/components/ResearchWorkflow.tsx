@@ -44,6 +44,7 @@ const ResearchWorkflow: React.FC = () => {
     const [error, setError] = useState<string>('');
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [selectedSources, setSelectedSources] = useState<SearchResult[]>([]);
 
     const handleNext = () => {
         setActiveStep((prev) => prev + 1);
@@ -110,6 +111,16 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
             setError('Failed to execute search queries. Please try again.');
         } finally {
             setIsSearching(false);
+        }
+    };
+
+    const handleSourceSelection = async (selected: SearchResult[]) => {
+        try {
+            setIsLoading(true);
+            setSelectedSources(selected);
+            handleNext();
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -214,7 +225,11 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                     </div>
                 );
             case 3:
-                return <SourceReview searchResults={searchResults} />;
+                return <SourceReview 
+                    searchResults={searchResults} 
+                    onSubmitSelected={handleSourceSelection}
+                    isSubmitting={isLoading}
+                />;
             default:
                 return (
                     <div className="p-4">
