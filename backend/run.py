@@ -8,11 +8,12 @@ import logging
 import os
 from config.settings import settings
 
+
 class WebResearchTool:
     def __init__(self, google_api_key: str, google_cse_id: str, openai_api_key: str):
         """
         Initialize the WebResearchTool with required API keys and configurations.
-        
+
         Args:
             google_api_key (str): Google Custom Search API key
             google_cse_id (str): Google Custom Search Engine ID
@@ -21,13 +22,13 @@ class WebResearchTool:
         # Set up logging
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
-        
+
         # Set required environment variables
         os.environ["GOOGLE_CSE_ID"] = settings.GOOGLE_SEARCH_ENGINE_ID
         os.environ["GOOGLE_API_KEY"] = settings.GOOGLE_SEARCH_API_KEY
         os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
         os.environ["USER_AGENT"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        
+
         self.retriever = None
         self.initialize_retriever()
 
@@ -68,23 +69,25 @@ class WebResearchTool:
                 llm=llm,
                 search=search,
                 num_search_results=3,  # Configurable
-                text_splitter=text_splitter
+                text_splitter=text_splitter,
+                allow_dangerous_requests=True
             )
-            
+
             self.logger.info("WebResearchRetriever initialized successfully")
-            
+
         except Exception as e:
-            self.logger.error(f"Failed to initialize WebResearchRetriever: {str(e)}")
+            self.logger.error(
+                f"Failed to initialize WebResearchRetriever: {str(e)}")
             raise
 
     def search(self, query: str, num_results: Optional[int] = 3) -> List[dict]:
         """
         Perform a web search and return relevant documents.
-        
+
         Args:
             query (str): The search query
             num_results (int, optional): Number of results to return. Defaults to 3.
-            
+
         Returns:
             List[dict]: List of documents with their metadata
         """
@@ -94,7 +97,7 @@ class WebResearchTool:
 
             self.logger.info(f"Executing search query: {query}")
             docs = self.retriever.get_relevant_documents(query)
-            
+
             # Format results
             results = []
             for doc in docs[:num_results]:
@@ -103,12 +106,13 @@ class WebResearchTool:
                     'source': doc.metadata.get('source', 'N/A'),
                     'title': doc.metadata.get('title', 'N/A')
                 })
-            
+
             return results
-            
+
         except Exception as e:
             self.logger.error(f"Error during web search: {str(e)}")
             return []
+
 
 def main():
     """Example usage of the WebResearchTool"""
@@ -133,6 +137,7 @@ def main():
 
     except Exception as e:
         logging.error(f"Main execution failed: {str(e)}")
+
 
 if __name__ == "__main__":
     main()
