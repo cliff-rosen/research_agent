@@ -20,49 +20,6 @@ class QuestionAnalysisResponse(BaseModel):
 
 
 @router.get(
-    "/expand-question",
-    response_model=List[str],
-    summary="Expand a question into related search queries using AI",
-    responses={
-        200: {
-            "description": "Question successfully expanded into related queries",
-            "content": {
-                "application/json": {
-                    "example": [
-                        "What are the core components of LangChain?",
-                        "How does LangChain integrate with different LLM providers?",
-                        "What are the main use cases for LangChain?"
-                    ]
-                }
-            }
-        },
-        401: {"description": "Not authenticated"}
-    }
-)
-async def expand_question(
-    question: str = Query(
-        description="The question to expand into related queries"
-    ),
-    current_user=Depends(auth_service.validate_token),
-    db: Session = Depends(get_db)
-):
-    """
-    Expand a question into multiple related search queries using AI.
-
-    Parameters:
-    - **question**: The input question to expand
-
-    Returns a list of related search queries that help explore different aspects of the question.
-    """
-    logger.info(f"expand_question endpoint called with question: {question}")
-
-    # Expand the question using research service
-    expanded_queries = await research_service.expand_question(question)
-
-    return expanded_queries
-
-
-@router.get(
     "/analyze-question",
     response_model=QuestionAnalysisResponse,
     summary="Analyze a question to identify key components and scope",
@@ -122,3 +79,46 @@ async def analyze_question(
     analysis = await research_service.analyze_question_scope(question)
 
     return analysis
+
+@router.get(
+    "/expand-question",
+    response_model=List[str],
+    summary="Expand a question into related search queries using AI",
+    responses={
+        200: {
+            "description": "Question successfully expanded into related queries",
+            "content": {
+                "application/json": {
+                    "example": [
+                        "What are the core components of LangChain?",
+                        "How does LangChain integrate with different LLM providers?",
+                        "What are the main use cases for LangChain?"
+                    ]
+                }
+            }
+        },
+        401: {"description": "Not authenticated"}
+    }
+)
+async def expand_question(
+    question: str = Query(
+        description="The question to expand into related queries"
+    ),
+    current_user=Depends(auth_service.validate_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Expand a question into multiple related search queries using AI.
+
+    Parameters:
+    - **question**: The input question to expand
+
+    Returns a list of related search queries that help explore different aspects of the question.
+    """
+    logger.info(f"expand_question endpoint called with question: {question}")
+
+    # Expand the question using research service
+    expanded_queries = await research_service.expand_question(question)
+
+    return expanded_queries
+

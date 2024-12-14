@@ -12,30 +12,6 @@ class ResearchService:
     def __init__(self):
         self.search_wrapper = None
 
-    async def expand_question(self, question: str) -> List[str]:
-        """
-        Expand a question into multiple related queries using AI.
-
-        Args:
-            question (str): The question to expand
-
-        Returns:
-            List[str]: List of expanded queries
-        """
-        try:
-            logger.info(f"Expanding question: {question}")
-            expanded_queries = await ai_service.expand_query(question)
-
-            # Filter out empty queries and strip whitespace
-            filtered_queries = [q.strip()
-                                for q in expanded_queries if q.strip()]
-
-            return filtered_queries
-
-        except Exception as e:
-            logger.error(f"Error expanding question: {str(e)}")
-            return []
-
     async def analyze_question_scope(self, question: str) -> QuestionAnalysis:
         """
         Analyze a question to identify its core components, scope, and success criteria.
@@ -71,6 +47,31 @@ class ResearchService:
                 success_criteria=[],
                 conflicting_viewpoints=[]
             )
+
+    async def expand_question(self, question: str) -> List[str]:
+        """
+        Expand a question into multiple related queries using AI.
+
+        Args:
+            question (str): The question to expand
+
+        Returns:
+            List[str]: List of expanded queries
+        """
+        try:
+            logger.info(f"Expanding question: {question}")
+            expanded_queries = await ai_service.expand_query(question)
+
+            # Filter out empty queries and strip whitespace
+            filtered_queries = [q.strip()
+                                for q in expanded_queries if q.strip()]
+
+            return filtered_queries
+
+        except Exception as e:
+            logger.error(f"Error expanding question: {str(e)}")
+            return []
+
 
 
 # Create a singleton instance

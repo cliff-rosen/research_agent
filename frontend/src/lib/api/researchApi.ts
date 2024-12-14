@@ -21,8 +21,8 @@ export const researchApi = {
 
     expandQuestion: async (question: string): Promise<string[]> => {
         try {
-            const response = await api.post('/api/research/expand', { question });
-            return response.data.expanded_queries;
+            const response = await api.get(`/api/research/expand-question?question=${encodeURIComponent(question)}`);
+            return response.data;
         } catch (error) {
             throw handleApiError(error);
         }

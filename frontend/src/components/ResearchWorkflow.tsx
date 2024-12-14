@@ -38,6 +38,7 @@ const ResearchWorkflow: React.FC = () => {
     const [question, setQuestion] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [analysis, setAnalysis] = useState<QuestionAnalysis | null>(null);
+    const [expandedQueries, setExpandedQueries] = useState<string[]>([]);
     const [error, setError] = useState<string>('');
 
     const handleNext = () => {
@@ -52,12 +53,43 @@ const ResearchWorkflow: React.FC = () => {
         setIsLoading(true);
         setError('');
         try {
-            const analysis = await researchApi.analyzeQuestion(question);
-            setAnalysis(analysis);
+            const analysisResult = await researchApi.analyzeQuestion(question);
+            setAnalysis(analysisResult);
             handleNext();
         } catch (error) {
             console.error('Error processing question:', error);
             setError('Failed to analyze question. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleQueryExpansion = async () => {
+        if (!analysis) return;
+        
+        setIsLoading(true);
+        setError('');
+        try {
+            // Create an enhanced question that includes the analysis context
+            const enhancedQuestion = `
+Original Question: ${question}
+
+Key Components:
+${analysis.key_components.map(c => `- ${c}`).join('\n')}
+
+Scope Boundaries:
+${analysis.scope_boundaries.map(b => `- ${b}`).join('\n')}
+
+Success Criteria:
+${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
+            `.trim();
+
+            const expanded = await researchApi.expandQuestion(enhancedQuestion);
+            setExpandedQueries(expanded);
+            handleNext();
+        } catch (error) {
+            console.error('Error expanding question:', error);
+            setError('Failed to expand question. Please try again.');
         } finally {
             setIsLoading(false);
         }
@@ -132,11 +164,43 @@ const ResearchWorkflow: React.FC = () => {
                                     ))}
                                 </ul>
                             </div>
+                            <div className="pt-4">
+                                <button
+                                    className={`px-4 py-2 rounded-lg text-white ${
+                                        isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                                    }`}
+                                    onClick={handleQueryExpansion}
+                                    disabled={isLoading}
+                                >
+                                    {isLoading ? 'Processing...' : 'Expand Question'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 ) : (
                     <div className="text-gray-600 dark:text-gray-400">
                         No analysis available. Please go back and submit a question.
+                    </div>
+                );
+            case 2:
+                return (
+                    <div className="space-y-6">
+                        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                            Expanded Search Queries
+                        </h2>
+                        <div className="space-y-4">
+                            <p className="text-gray-600 dark:text-gray-400">
+                                Based on your question and its analysis, here are the expanded search queries:
+                            </p>
+                            <ul className="list-disc pl-5 space-y-1">
+                                {expandedQueries.map((query, index) => (
+                                    <li key={index} className="text-gray-600 dark:text-gray-400">{query}</li>
+                                ))}
+                            </ul>
+                            {error && (
+                                <div className="text-red-500 text-sm">{error}</div>
+                            )}
+                        </div>
                     </div>
                 );
             default:
