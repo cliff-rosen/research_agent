@@ -1,18 +1,13 @@
 from sqlalchemy.orm import Session
 import logging
-from typing import List, Dict, Optional, TypedDict
+from typing import List, Dict, Optional
 from config.settings import settings
 from services.ai_service import ai_service
 from services.search_service import google_search, score_and_rank_results
-from schemas import SearchResult
+from schemas import SearchResult, QuestionAnalysis
 
 logger = logging.getLogger(__name__)
 
-class QuestionAnalysis(TypedDict):
-    key_components: List[str]
-    scope_boundaries: List[str]
-    success_criteria: List[str]
-    conflicting_viewpoints: List[str]
 
 class ResearchService:
     def __init__(self):
@@ -32,38 +27,48 @@ class ResearchService:
         """
         try:
             logger.info(f"Executing {len(queries)} queries")
-            
-            # Execute all queries in parallel
-            all_results = []
+
+            # Execute all queries and collect raw results
+            all_raw_results = []
             for query in queries:
                 results = await google_search(query)
-                # Convert to SearchResult objects
-                search_results = [
-                    SearchResult(
-                        title=result["title"],
-                        link=result["link"],
-                        snippet=result["snippet"],
-                        displayLink=result["displayLink"],
-                        pagemap=result["pagemap"],
-                        relevance_score=0.0  # Initialize score
-                    )
-                    for result in results
-                ]
-                # Score results for this query
-                scored_results = await score_and_rank_results(query, search_results)
-                all_results.extend(scored_results)
+                all_raw_results.extend(results)
 
-            # Deduplicate results by link, keeping the highest scored version
-            unique_results = {}
-            for result in all_results:
-                if result.link not in unique_results or result.relevance_score > unique_results[result.link].relevance_score:
-                    unique_results[result.link] = result
+            # Deduplicate by link before converting to SearchResult objects
+            unique_raw_results = {}
+            for result in all_raw_results:
+                if result["link"] not in unique_raw_results:
+                    unique_raw_results[result["link"]] = result
 
-            # Convert back to list and sort by relevance score
-            final_results = list(unique_results.values())
-            final_results.sort(key=lambda x: x.relevance_score, reverse=True)
+            # Convert unique results to SearchResult objects
+            unique_results = [
+                SearchResult(
+                    title=result["title"],
+                    link=result["link"],
+                    snippet=result["snippet"],
+                    displayLink=result["displayLink"],
+                    pagemap=result["pagemap"],
+                    relevance_score=0.0  # Initialize score
+                )
+                for result in unique_raw_results.values()
+            ]
 
-            return final_results
+            # Score all unique results against all queries and keep highest score
+            result_scores = {}
+            for query in queries:
+                scored_results = await score_and_rank_results(query, unique_results)
+                for result in scored_results:
+                    if result.link not in result_scores or result.relevance_score > result_scores[result.link]:
+                        result_scores[result.link] = result.relevance_score
+
+            # Apply the highest scores back to the unique results
+            for result in unique_results:
+                result.relevance_score = result_scores[result.link]
+
+            # Sort by relevance score
+            unique_results.sort(key=lambda x: x.relevance_score, reverse=True)
+
+            return unique_results
 
         except Exception as e:
             logger.error(f"Error executing queries: {str(e)}")
@@ -81,10 +86,10 @@ class ResearchService:
         """
         try:
             logger.info(f"Analyzing question: {question}")
-            
+
             # Use AI service to analyze the question and get QuestionAnalysis model
             result = await ai_service.analyze_question_scope(question)
-            
+
             # Log analysis results using model attributes
             logger.info(
                 f"Analysis complete. Found {len(result.key_components)} key components, "
@@ -92,7 +97,7 @@ class ResearchService:
                 f"{len(result.success_criteria)} success criteria, and "
                 f"{len(result.conflicting_viewpoints)} conflicting viewpoints"
             )
-            
+
             return result
 
         except Exception as e:
@@ -128,7 +133,6 @@ class ResearchService:
         except Exception as e:
             logger.error(f"Error expanding question: {str(e)}")
             return []
-
 
 
 # Create a singleton instance

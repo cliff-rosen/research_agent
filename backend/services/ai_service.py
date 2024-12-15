@@ -125,11 +125,11 @@ class AIService:
                                      ) -> QuestionAnalysis:
         """
         Analyze a question to determine its key components, scope, and success criteria.
-        
+
         Args:
             question: The question to analyze
             model: Optional specific model to use
-            
+
         Returns:
             QuestionAnalysis: Pydantic model containing the analysis components
         """
@@ -137,13 +137,13 @@ class AIService:
             messages = [
                 {"role": "user", "content": f"Analyze this question: {question}"}
             ]
-            
+
             content = await self.provider.create_chat_completion(
                 messages=messages,
                 system=ANALYZE_QUESTION_PROMPT,
                 model=model
             )
-            
+
             try:
                 # Clean the response string
                 response_text = content.strip()
@@ -151,23 +151,23 @@ class AIService:
                     response_text = response_text.split('```')[1].strip()
                 elif response_text.startswith('```'):
                     response_text = response_text.split('```')[1].strip()
-                
-                # Parse JSON response and validate with Pydantic model
+
+                # Parse JSON response and create Pydantic model
                 import json
                 analysis_dict = json.loads(response_text)
-                
+
                 # Create and validate with Pydantic model
-                result = QuestionAnalysis(
+                return QuestionAnalysis(
                     key_components=analysis_dict.get('key_components', []),
                     scope_boundaries=analysis_dict.get('scope_boundaries', []),
                     success_criteria=analysis_dict.get('success_criteria', []),
-                    conflicting_viewpoints=analysis_dict.get('conflicting_viewpoints', [])
+                    conflicting_viewpoints=analysis_dict.get(
+                        'conflicting_viewpoints', [])
                 )
-                
-                return result
 
             except json.JSONDecodeError as e:
-                logger.error(f"Error parsing analysis JSON response: {str(e)}\nResponse: {content}")
+                logger.error(
+                    f"Error parsing analysis JSON response: {str(e)}\nResponse: {content}")
                 return QuestionAnalysis(
                     key_components=[],
                     scope_boundaries=[],
