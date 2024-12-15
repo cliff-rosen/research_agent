@@ -95,29 +95,33 @@ Source Content:
 
 Analyze the sources and provide a comprehensive answer. Your response must be a valid JSON object with these exact keys:
 {{
-    "answer": "detailed answer synthesizing the information",
+    "answer": "detailed answer in markdown format, using proper markdown syntax for headings, lists, emphasis, etc.",
     "sources_used": ["list of URLs that contributed to the answer"],
     "confidence_score": number between 0-100 indicating confidence in the answer
 }}
 
 Guidelines:
+- Format your answer using markdown syntax:
+  - Use ## for section headings
+  - Use * or - for bullet points
+  - Use **text** for emphasis
+  - Use > for important quotes or key points
+  - Use --- for section breaks
 - Synthesize information across sources
 - Cite specific sources when making claims
 - Acknowledge uncertainties or conflicting information
 - Focus on answering the core question
-- Ensure your response is a properly formatted JSON object
-- Do not include any text outside the JSON object
-- Do not use newlines within the "answer" text
-- Use escaped quotes within strings
+- Structure your answer with clear sections
+- Use markdown to improve readability
 
 Example response format:
 {{
-    "answer": "Based on the analyzed sources, the key findings are...",
+    "answer": "## Overview\\n\\nBased on the analyzed sources, the key findings are...\\n\\n### Key Points\\n\\n* First important point\\n* Second important point\\n\\n> Important note: key consideration...\\n\\n### Detailed Analysis\\n\\nFurther examination reveals...",
     "sources_used": ["https://example.com/source1", "https://example.com/source2"],
     "confidence_score": 85
 }}
 
-IMPORTANT: Your response must be ONLY a valid JSON object. Do not include any explanatory text, markdown formatting, or code blocks."""
+IMPORTANT: Your response must be ONLY a valid JSON object. Do not include any explanatory text, markdown formatting, or code blocks outside the JSON structure."""
 
 
 class AIService:
@@ -187,28 +191,54 @@ class AIService:
             response_text = response_text.strip()
 
             try:
+                # Try to fix common JSON issues
+                if response_text.endswith(','):
+                    response_text = response_text[:-1]
+                if '"sources_used": [' in response_text and not ']' in response_text.split('"sources_used": [')[1]:
+                    response_text = response_text.split('"sources_used": [')[
+                        0] + '"sources_used": []}'
+
                 import json
                 result = json.loads(response_text)
             except json.JSONDecodeError as e:
                 logger.error(f"JSON parsing error: {str(e)}")
                 logger.error(f"Response text: {response_text}")
+
+                # Try to salvage the answer if possible
+                answer_match = '"answer": "(.+?)",' in response_text
+                if answer_match:
+                    return ResearchAnswer(
+                        answer=answer_match.group(1),
+                        sources_used=[],
+                        confidence_score=0.0
+                    )
                 raise
 
             # Validate required fields
             if not isinstance(result.get('answer'), str):
                 raise ValueError(
                     "Missing or invalid 'answer' field in response")
-            if not isinstance(result.get('sources_used'), list):
-                raise ValueError(
-                    "Missing or invalid 'sources_used' field in response")
-            if not isinstance(result.get('confidence_score'), (int, float)):
-                raise ValueError(
-                    "Missing or invalid 'confidence_score' field in response")
+
+            # Ensure sources is a list and contains valid URLs
+            sources = result.get('sources_used', [])
+            if not isinstance(sources, list):
+                sources = []
+            # Filter out any truncated or invalid URLs
+            sources = [s for s in sources if isinstance(
+                s, str) and s.startswith('http')]
+
+            # Ensure confidence score is valid
+            try:
+                confidence = float(result.get('confidence_score', 0.0))
+                # Clamp between 0 and 100
+                confidence = max(0.0, min(100.0, confidence))
+            except (TypeError, ValueError):
+                confidence = 0.0
 
             return ResearchAnswer(
                 answer=result['answer'],
-                sources_used=result['sources_used'],
-                confidence_score=float(result['confidence_score'])
+                sources_used=sources,
+                confidence_score=confidence
             )
 
         except Exception as e:

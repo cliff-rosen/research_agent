@@ -7,7 +7,7 @@ import aiohttp
 import ssl
 import certifi
 
-DEFAULT_MAX_TOKENS = 1024  # Default max tokens for Claude-3
+DEFAULT_MAX_TOKENS = 4096  # Default max tokens for Claude-3
 logger = logging.getLogger(__name__)
 
 
@@ -27,7 +27,7 @@ class AnthropicProvider(LLMProvider):
         try:
             model = model or self.get_default_model()
             max_tokens = max_tokens or DEFAULT_MAX_TOKENS
-            
+
             message = await self.client.messages.create(
                 model=model,
                 max_tokens=max_tokens,
@@ -49,18 +49,18 @@ class AnthropicProvider(LLMProvider):
         try:
             model = model or self.get_default_model()
             max_tokens = max_tokens or DEFAULT_MAX_TOKENS
-            
+
             # Build request parameters with required fields
             params = {
                 "model": model,
                 "messages": messages,
                 "max_tokens": max_tokens
             }
-            
+
             # Add optional system parameter if provided
             if system is not None:
                 params["system"] = system
-                
+
             message = await self.client.messages.create(**params)
             return message.content[0].text
         except Exception as e:
