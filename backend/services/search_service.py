@@ -3,10 +3,12 @@ import logging
 from typing import List, Dict, Optional
 import aiohttp
 from config.settings import settings
-from schemas import SearchResult
+from schemas import SearchResult, URLContent
 from services.ai_service import ai_service
 import ssl
 import certifi
+from bs4 import BeautifulSoup
+import trafilatura
 
 NUM_RESULTS = settings.GOOGLE_SEARCH_NUM_RESULTS
 
@@ -166,3 +168,62 @@ async def score_and_rank_results(query: str, results: List[SearchResult]) -> Lis
             result.relevance_score = 50.0
         return results
 
+
+async def fetch_url_content(url: str) -> URLContent:
+    """
+    Fetch and extract clean content from a URL.
+
+    Args:
+        url (str): The URL to fetch content from
+
+    Returns:
+        URLContent: Pydantic model containing:
+        - url: Original URL
+        - title: Page title
+        - text: Main content text
+        - error: Error message if failed
+    """
+    try:
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl_context)) as session:
+            async with session.get(url, timeout=10) as response:
+                response.raise_for_status()
+                html = await response.text()
+
+                # Extract content and metadata using trafilatura
+                extracted = trafilatura.extract(html,
+                                                include_tables=False,
+                                                include_images=False,
+                                                include_links=False,
+                                                output_format='json',
+                                                with_metadata=True)
+
+                if extracted:
+                    import json
+                    data = json.loads(extracted)
+                    title = data.get('title', '')
+                    content = data.get('text', '')
+                else:
+                    # Fallback to BeautifulSoup
+                    soup = BeautifulSoup(html, 'html.parser')
+                    # Remove script and style elements
+                    for script in soup(["script", "style"]):
+                        script.decompose()
+                    content = soup.get_text(separator=' ', strip=True)
+                    title = soup.title.string if soup.title else ''
+
+                return URLContent(
+                    url=url,
+                    title=title,
+                    text=content or '',
+                    error=''
+                )
+
+    except Exception as e:
+        logger.error(f"Error fetching URL {url}: {str(e)}")
+        return URLContent(
+            url=url,
+            title='',
+            text='',
+            error=str(e)
+        )

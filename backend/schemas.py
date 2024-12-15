@@ -64,7 +64,21 @@ class SearchResult(BaseModel):
     )
 
 
+class FetchURLsRequest(BaseModel):
+    """Request model for fetching multiple URLs"""
+    urls: List[str] = Field(description="List of URLs to fetch content from")
+
+
+class URLContent(BaseModel):
+    """Schema for URL content response"""
+    url: str
+    title: str
+    text: str
+    error: str = ""
+
+
 ##### RESEARCH SCHEMA #####
+
 
 class QuestionAnalysis(BaseModel):
     """Schema for question analysis results"""
