@@ -9,6 +9,7 @@ import ssl
 import certifi
 from bs4 import BeautifulSoup
 import trafilatura
+import asyncio
 
 NUM_RESULTS = settings.GOOGLE_SEARCH_NUM_RESULTS
 
@@ -227,3 +228,41 @@ async def fetch_url_content(url: str) -> URLContent:
             text='',
             error=str(e)
         )
+
+
+async def fetch_urls_content(urls: List[str]) -> List[URLContent]:
+    """
+    Fetch and extract content from multiple URLs in parallel.
+
+    Args:
+        urls (List[str]): List of URLs to fetch content from
+
+    Returns:
+        List[URLContent]: List of URL contents, with error messages for failed fetches
+    """
+    try:
+        # Create tasks for all URLs
+        tasks = [fetch_url_content(url) for url in urls]
+
+        # Execute all tasks in parallel
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process results, converting exceptions to error messages
+        processed_results = []
+        for url, result in zip(urls, results):
+            if isinstance(result, Exception):
+                # If the result is an exception, create an error URLContent
+                processed_results.append(URLContent(
+                    url=url,
+                    title="",
+                    text="",
+                    error=str(result)
+                ))
+            else:
+                # If successful, use the result directly
+                processed_results.append(result)
+
+        return processed_results
+    except Exception as e:
+        logger.error(f"Error in parallel URL fetching: {str(e)}")
+        raise

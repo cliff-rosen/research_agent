@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { researchApi, QuestionAnalysis, SearchResult } from '../lib/api/researchApi';
+import { researchApi, QuestionAnalysis as QuestionAnalysisType, SearchResult } from '../lib/api/researchApi';
+import { searchApi, URLContent } from '../lib/api/searchApi';
 import QuestionExpansion from '../components/QuestionExpansion';
-import SourceReview from './SourceReview';
+import SourceSelection from './SourceSelection';
+import QuestionAnalysis from './QuestionAnalysis';
+import SourceAnalysis from './SourceAnalysis';
 
 interface WorkflowStep {
     label: string;
@@ -22,11 +25,11 @@ const workflowSteps: WorkflowStep[] = [
         description: 'View and edit related search terms and alternative phrasings'
     },
     {
-        label: 'Source Review',
-        description: 'Review and filter identified sources'
+        label: 'Source Selection',
+        description: 'Review and select relevant sources'
     },
     {
-        label: 'Information Analysis',
+        label: 'Source Analysis',
         description: 'Review extracted information and conflicts'
     },
     {
@@ -39,12 +42,13 @@ const ResearchWorkflow: React.FC = () => {
     const [activeStep, setActiveStep] = useState(0);
     const [question, setQuestion] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [analysis, setAnalysis] = useState<QuestionAnalysis | null>(null);
+    const [analysis, setAnalysis] = useState<QuestionAnalysisType | null>(null);
     const [expandedQueries, setExpandedQueries] = useState<string[]>([]);
     const [error, setError] = useState<string>('');
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [selectedSources, setSelectedSources] = useState<SearchResult[]>([]);
+    const [sourceContent, setSourceContent] = useState<URLContent[]>([]);
 
     const handleNext = () => {
         setActiveStep((prev) => prev + 1);
@@ -118,10 +122,26 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         try {
             setIsLoading(true);
             setSelectedSources(selected);
+            
+            // Extract URLs from selected sources
+            const urls = selected.map(source => source.link);
+            
+            // Fetch content for all selected URLs
+            const content = await searchApi.fetchUrls(urls);
+            setSourceContent(content);
+            
             handleNext();
+        } catch (error) {
+            console.error('Error fetching source content:', error);
+            setError('Failed to fetch source content. Please try again.');
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleAnalysisProceed = () => {
+        // Here you could add any processing needed before moving to final answer
+        handleNext();
     };
 
     const renderStepContent = (step: number) => {
@@ -155,55 +175,11 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                 );
             case 1:
                 return analysis ? (
-                    <div className="space-y-6">
-                        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                            Question Analysis
-                        </h2>
-                        <div className="space-y-4">
-                            <div>
-                                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">Key Components</h3>
-                                <ul className="list-disc pl-5 space-y-1">
-                                    {analysis.key_components.map((component, index) => (
-                                        <li key={index} className="text-gray-600 dark:text-gray-400">{component}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">Scope Boundaries</h3>
-                                <ul className="list-disc pl-5 space-y-1">
-                                    {analysis.scope_boundaries.map((boundary, index) => (
-                                        <li key={index} className="text-gray-600 dark:text-gray-400">{boundary}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">Success Criteria</h3>
-                                <ul className="list-disc pl-5 space-y-1">
-                                    {analysis.success_criteria.map((criteria, index) => (
-                                        <li key={index} className="text-gray-600 dark:text-gray-400">{criteria}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">Conflicting Viewpoints</h3>
-                                <ul className="list-disc pl-5 space-y-1">
-                                    {analysis.conflicting_viewpoints.map((viewpoint, index) => (
-                                        <li key={index} className="text-gray-600 dark:text-gray-400">{viewpoint}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                            <div className="pt-4">
-                                <button
-                                    className={`px-4 py-2 rounded-lg text-white ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                                        }`}
-                                    onClick={handleQueryExpansion}
-                                    disabled={isLoading}
-                                >
-                                    {isLoading ? 'Processing...' : 'Expand Question'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <QuestionAnalysis
+                        analysis={analysis}
+                        isLoading={isLoading}
+                        onProceed={handleQueryExpansion}
+                    />
                 ) : (
                     <div className="text-gray-600 dark:text-gray-400">
                         No analysis available. Please go back and submit a question.
@@ -225,10 +201,16 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                     </div>
                 );
             case 3:
-                return <SourceReview 
+                return <SourceSelection 
                     searchResults={searchResults} 
                     onSubmitSelected={handleSourceSelection}
                     isSubmitting={isLoading}
+                />;
+            case 4:
+                return <SourceAnalysis 
+                    sourceContent={sourceContent}
+                    isLoading={isLoading}
+                    onProceed={handleAnalysisProceed}
                 />;
             default:
                 return (

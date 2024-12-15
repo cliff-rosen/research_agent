@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { SearchResult } from '../lib/api/researchApi';
 
-interface SourceReviewProps {
+interface SourceSelectionProps {
     searchResults: SearchResult[];
     onSubmitSelected: (selectedResults: SearchResult[]) => void;
     isSubmitting: boolean;
 }
 
-const SourceReview: React.FC<SourceReviewProps> = ({ searchResults, onSubmitSelected, isSubmitting }) => {
+const SourceSelection: React.FC<SourceSelectionProps> = ({ searchResults, onSubmitSelected, isSubmitting }) => {
     const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
 
     const toggleSource = (link: string) => {
@@ -37,7 +37,7 @@ const SourceReview: React.FC<SourceReviewProps> = ({ searchResults, onSubmitSele
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                    Source Review
+                    Source Selection
                 </h2>
                 <button
                     className={`px-4 py-2 rounded-lg text-white ${
@@ -147,4 +147,4 @@ const SourceReview: React.FC<SourceReviewProps> = ({ searchResults, onSubmitSele
     );
 };
 
-export default SourceReview; 
+export default SourceSelection; 

@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, status, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
-from schemas import SearchResult, URLContent
+from schemas import SearchResult, URLContent, FetchURLsRequest
 from services import auth_service, search_service
 import logging
 from pydantic import BaseModel
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -105,11 +106,11 @@ async def fetch_url(url: str = Query(..., description="URL to fetch content from
 @router.post(
     "/fetch-urls",
     response_model=List[URLContent],
-    summary="Fetch and extract content from multiple URLs"
+    summary="Fetch and extract content from multiple URLs in parallel"
 )
 async def fetch_urls(request: FetchURLsRequest) -> List[URLContent]:
     """
-    Fetch and extract content from multiple URLs.
+    Fetch and extract content from multiple URLs in parallel.
 
     Args:
         request: FetchURLsRequest containing:
@@ -123,13 +124,9 @@ async def fetch_urls(request: FetchURLsRequest) -> List[URLContent]:
         - error: Error message if failed
     """
     try:
-        results = []
-        for url in request.urls:
-            content = await search_service.fetch_url_content(url)
-            results.append(content)
-        return results
+        return await search_service.fetch_urls_content(request.urls)
     except Exception as e:
-        logger.error(f"Error fetching URLs content: {str(e)}")
+        logger.error(f"Error in parallel URL fetching: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
