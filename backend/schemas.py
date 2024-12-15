@@ -96,3 +96,17 @@ class QuestionAnalysis(BaseModel):
     )
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ResearchAnswer(BaseModel):
+    """Schema for final research answer"""
+    answer: str = Field(description="Final synthesized answer")
+    sources_used: List[str] = Field(
+        description="List of sources used in the answer")
+    confidence_score: float = Field(
+        description="Confidence score for the answer (0-100)",
+        ge=0.0,
+        le=100.0
+    )
+
+    model_config = ConfigDict(from_attributes=True)

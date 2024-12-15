@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { researchApi, QuestionAnalysis as QuestionAnalysisType, SearchResult } from '../lib/api/researchApi';
+import { researchApi, QuestionAnalysis as QuestionAnalysisType, SearchResult, ResearchAnswer as ResearchAnswerType } from '../lib/api/researchApi';
 import { searchApi, URLContent } from '../lib/api/searchApi';
 import QuestionExpansion from '../components/QuestionExpansion';
 import SourceSelection from './SourceSelection';
 import QuestionAnalysis from './QuestionAnalysis';
 import SourceAnalysis from './SourceAnalysis';
+import ResearchAnswer from './ResearchAnswer';
 
 interface WorkflowStep {
     label: string;
@@ -33,8 +34,8 @@ const workflowSteps: WorkflowStep[] = [
         description: 'Review extracted information and conflicts'
     },
     {
-        label: 'Final Answer',
-        description: 'View the comprehensive answer with citations and confidence levels'
+        label: 'Research Answer',
+        description: 'View the research answer with citations and confidence levels'
     }
 ];
 
@@ -49,6 +50,8 @@ const ResearchWorkflow: React.FC = () => {
     const [isSearching, setIsSearching] = useState(false);
     const [selectedSources, setSelectedSources] = useState<SearchResult[]>([]);
     const [sourceContent, setSourceContent] = useState<URLContent[]>([]);
+    const [enhancedQuestion, setEnhancedQuestion] = useState<string>('');
+    const [researchAnswer, setResearchAnswer] = useState<ResearchAnswerType | null>(null);
 
     const handleNext = () => {
         setActiveStep((prev) => prev + 1);
@@ -80,7 +83,7 @@ const ResearchWorkflow: React.FC = () => {
         setError('');
         try {
             // Create an enhanced question that includes the analysis context
-            const enhancedQuestion = `
+            const enhancedQuestionText = `
 Original Question: ${question}
 
 Key Components:
@@ -93,7 +96,8 @@ Success Criteria:
 ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
             `.trim();
 
-            const expanded = await researchApi.expandQuestion(enhancedQuestion);
+            setEnhancedQuestion(enhancedQuestionText);
+            const expanded = await researchApi.expandQuestion(enhancedQuestionText);
             setExpandedQueries(expanded);
             handleNext();
         } catch (error) {
@@ -139,9 +143,20 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         }
     };
 
-    const handleAnalysisProceed = () => {
-        // Here you could add any processing needed before moving to final answer
-        handleNext();
+    const handleAnalysisProceed = async () => {
+        try {
+            setIsLoading(true);
+            setError('');
+            
+            const answer = await researchApi.getResearchAnswer(enhancedQuestion, sourceContent);
+            setResearchAnswer(answer);
+            handleNext();
+        } catch (error) {
+            console.error('Error getting research answer:', error);
+            setError('Failed to generate research answer. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const renderStepContent = (step: number) => {
@@ -212,6 +227,14 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                     isLoading={isLoading}
                     onProceed={handleAnalysisProceed}
                 />;
+            case 5:
+                return researchAnswer ? (
+                    <ResearchAnswer answer={researchAnswer} />
+                ) : (
+                    <div className="text-gray-600 dark:text-gray-400">
+                        No research answer available. Please go back and try again.
+                    </div>
+                );
             default:
                 return (
                     <div className="p-4">

@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, Query, Body
 from sqlalchemy.orm import Session
 from typing import List, Dict, TypedDict
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from database import get_db
-from services import auth_service
+from services import auth_service, ai_service
 from services.research_service import research_service
-from schemas import SearchResult
+from schemas import SearchResult, ResearchAnswer, URLContent
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,6 +22,13 @@ class QuestionAnalysisResponse(BaseModel):
 
 class ExecuteQueriesRequest(BaseModel):
     queries: List[str]
+
+
+class GetResearchAnswerRequest(BaseModel):
+    """Request model for getting research answers"""
+    question: str = Field(description="The research question to answer")
+    source_content: List[URLContent] = Field(
+        description="List of URL content to analyze")
 
 
 @router.get(
@@ -85,6 +92,7 @@ async def analyze_question(
 
     return analysis
 
+
 @router.get(
     "/expand-question",
     response_model=List[str],
@@ -127,6 +135,7 @@ async def expand_question(
 
     return expanded_queries
 
+
 @router.post(
     "/execute-queries",
     response_model=List[SearchResult],
@@ -141,19 +150,69 @@ async def expand_question(
 )
 async def execute_queries(
     request: ExecuteQueriesRequest,
-    current_user = Depends(auth_service.validate_token),
+    current_user=Depends(auth_service.validate_token),
     db: Session = Depends(get_db)
 ):
     """
     Execute multiple search queries and return collated, deduplicated results
-    
+
     Parameters:
     - **queries**: List of search queries to execute
-    
+
     Returns a list of unique search results from all queries, sorted by relevance.
     """
     # Take only the first 3 queries
     queries = request.queries[:3]
-    logger.info(f"execute_queries endpoint called with {len(queries)} queries (limited to first 3)")
+    logger.info(
+        f"execute_queries endpoint called with {len(queries)} queries (limited to first 3)")
     return await research_service.execute_queries(db, queries, current_user.user_id)
 
+
+@router.post(
+    "/get-answer",
+    response_model=ResearchAnswer,
+    summary="Generate a research answer from analyzed sources",
+    responses={
+        200: {
+            "description": "Research answer successfully generated",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "answer": "Based on the analyzed sources, the impact of urban development...",
+                        "sources_used": [
+                            "https://example.com/urban-development-study",
+                            "https://example.com/climate-research"
+                        ],
+                        "confidence_score": 85.5
+                    }
+                }
+            }
+        },
+        401: {"description": "Not authenticated"}
+    }
+)
+async def get_research_answer(
+    request: GetResearchAnswerRequest,
+    current_user=Depends(auth_service.validate_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a comprehensive research answer from analyzed sources.
+
+    Parameters:
+    - **question**: The research question to answer
+    - **source_content**: List of URL content objects to analyze
+
+    Returns a research answer with synthesized information, sources used, and confidence score.
+    """
+    logger.info(
+        f"get_research_answer endpoint called with question: {request.question}")
+    logger.info(f"Number of sources provided: {len(request.source_content)}")
+
+    # Use AI service to generate the research answer
+    result = await ai_service.get_research_answer(
+        question=request.question,
+        source_content=request.source_content
+    )
+
+    return result

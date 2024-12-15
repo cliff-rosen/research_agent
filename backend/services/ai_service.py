@@ -4,7 +4,7 @@ from config.settings import settings
 from .llm.base import LLMProvider
 from .llm.anthropic_provider import AnthropicProvider
 from .llm.openai_provider import OpenAIProvider
-from schemas import QuestionAnalysis
+from schemas import QuestionAnalysis, ResearchAnswer, URLContent
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,39 @@ Example response format:
 
 Do not include any other text or explanation in your response, only the JSON array."""
 
+RESEARCH_ANSWER_PROMPT = """You are an expert research analyst synthesizing information to answer a question.
+
+Question: {question}
+
+Source Content:
+{source_content}
+
+Analyze the sources and provide a comprehensive answer. Your response must be a valid JSON object with these exact keys:
+{{
+    "answer": "detailed answer synthesizing the information",
+    "sources_used": ["list of URLs that contributed to the answer"],
+    "confidence_score": number between 0-100 indicating confidence in the answer
+}}
+
+Guidelines:
+- Synthesize information across sources
+- Cite specific sources when making claims
+- Acknowledge uncertainties or conflicting information
+- Focus on answering the core question
+- Ensure your response is a properly formatted JSON object
+- Do not include any text outside the JSON object
+- Do not use newlines within the "answer" text
+- Use escaped quotes within strings
+
+Example response format:
+{{
+    "answer": "Based on the analyzed sources, the key findings are...",
+    "sources_used": ["https://example.com/source1", "https://example.com/source2"],
+    "confidence_score": 85
+}}
+
+IMPORTANT: Your response must be ONLY a valid JSON object. Do not include any explanatory text, markdown formatting, or code blocks."""
+
 
 class AIService:
     def __init__(self):
@@ -99,6 +132,94 @@ class AIService:
             self.provider = AnthropicProvider()
         else:
             raise ValueError(f"Unsupported provider: {provider}")
+
+    async def get_research_answer(self,
+                                  question: str,
+                                  source_content: List[URLContent],
+                                  model: Optional[str] = None
+                                  ) -> ResearchAnswer:
+        """
+        Generate a final research answer from analyzed sources.
+
+        Args:
+            question: The research question
+            source_content: List of URLContent objects containing the source content
+            model: Optional specific model to use
+
+        Returns:
+            ResearchAnswer: Final synthesized answer with sources and confidence
+        """
+        try:
+            # Format source content for the prompt
+            formatted_sources = "\n\n".join([
+                f"Source ({content.url}):\nTitle: {content.title}\n{content.text}"
+                for content in source_content
+                if not content.error  # Skip sources with errors
+            ])
+
+            messages = [
+                {"role": "user", "content": RESEARCH_ANSWER_PROMPT.format(
+                    question=question,
+                    source_content=formatted_sources
+                )}
+            ]
+
+            content = await self.provider.create_chat_completion(
+                messages=messages,
+                system=RESEARCH_ANSWER_PROMPT,
+                model=model
+            )
+
+            # Parse JSON response
+            response_text = content.strip()
+
+            # Remove any markdown code block markers
+            if '```' in response_text:
+                # Extract content between first and last ```
+                parts = response_text.split('```')
+                if len(parts) >= 3:
+                    response_text = parts[1]
+                    if response_text.startswith('json'):
+                        response_text = response_text[4:]
+                    response_text = response_text.strip()
+
+            # Clean up any remaining whitespace or newlines
+            response_text = response_text.strip()
+
+            try:
+                import json
+                result = json.loads(response_text)
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON parsing error: {str(e)}")
+                logger.error(f"Response text: {response_text}")
+                raise
+
+            # Validate required fields
+            if not isinstance(result.get('answer'), str):
+                raise ValueError(
+                    "Missing or invalid 'answer' field in response")
+            if not isinstance(result.get('sources_used'), list):
+                raise ValueError(
+                    "Missing or invalid 'sources_used' field in response")
+            if not isinstance(result.get('confidence_score'), (int, float)):
+                raise ValueError(
+                    "Missing or invalid 'confidence_score' field in response")
+
+            return ResearchAnswer(
+                answer=result['answer'],
+                sources_used=result['sources_used'],
+                confidence_score=float(result['confidence_score'])
+            )
+
+        except Exception as e:
+            logger.error(f"Error generating research answer: {str(e)}")
+            logger.error(f"Question: {question}")
+            logger.error(f"Number of sources: {len(source_content)}")
+            return ResearchAnswer(
+                answer="Error generating answer. Please try again.",
+                sources_used=[],
+                confidence_score=0.0
+            )
 
     async def expand_query(self,
                            query: str,

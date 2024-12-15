@@ -1,11 +1,17 @@
 import { api, handleApiError } from './index'
-import { SearchResult } from './searchApi'
+import { SearchResult, URLContent } from './searchApi'
 
 export interface QuestionAnalysis {
     key_components: string[];
     scope_boundaries: string[];
     success_criteria: string[];
     conflicting_viewpoints: string[];
+}
+
+export interface ResearchAnswer {
+    answer: string;
+    sources_used: string[];
+    confidence_score: number;
 }
 
 export type AnalyzeQuestionResponse = QuestionAnalysis;
@@ -34,6 +40,18 @@ export const researchApi = {
     executeQueries: async (queries: string[]): Promise<SearchResult[]> => {
         try {
             const response = await api.post('/api/research/execute-queries', { queries });
+            return response.data;
+        } catch (error) {
+            throw handleApiError(error);
+        }
+    },
+
+    getResearchAnswer: async (question: string, sourceContent: URLContent[]): Promise<ResearchAnswer> => {
+        try {
+            const response = await api.post('/api/research/get-answer', {
+                question,
+                source_content: sourceContent
+            });
             return response.data;
         } catch (error) {
             throw handleApiError(error);
