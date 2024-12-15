@@ -229,7 +229,11 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                 />;
             case 5:
                 return researchAnswer ? (
-                    <ResearchAnswer answer={researchAnswer} />
+                    <ResearchAnswer 
+                        answer={researchAnswer}
+                        originalQuestion={question}
+                        analysis={analysis!}
+                    />
                 ) : (
                     <div className="text-gray-600 dark:text-gray-400">
                         No research answer available. Please go back and try again.
