@@ -241,3 +241,18 @@ async def analyze_question_stream(
         research_service.analyze_question_scope_stream(question),
         media_type="application/x-ndjson"
     )
+
+
+@router.get("/expand-question/stream")
+async def expand_question_stream(
+    question: str = Query(..., description="The question to expand"),
+    db: Session = Depends(get_db),
+    current_user=Depends(auth_service.validate_token),
+):
+    """
+    Stream the question expansion process, returning markdown-formatted results.
+    """
+    return StreamingResponse(
+        research_service.expand_question_stream(question),
+        media_type="text/event-stream"
+    )

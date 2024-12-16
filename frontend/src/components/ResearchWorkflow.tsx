@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { researchApi, QuestionAnalysis as QuestionAnalysisType, SearchResult, ResearchAnswer as ResearchAnswerType } from '../lib/api/researchApi';
+import { researchApi, QuestionAnalysisResponse, SearchResult, ResearchAnswer as ResearchAnswerType } from '../lib/api/researchApi';
 import { searchApi, URLContent } from '../lib/api/searchApi';
 import QuestionExpansion from '../components/QuestionExpansion';
 import SourceSelection from './SourceSelection';
@@ -19,12 +19,13 @@ const ResearchWorkflow: React.FC = () => {
     const [activeStep, setActiveStep] = useState(0);
     const [question, setQuestion] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [markdownContent, setMarkdownContent] = useState<string>('');
-    const [analysis, setAnalysis] = useState<QuestionAnalysisType | null>(null);
+    const [analysisMarkdown, setAnalysisMarkdown] = useState<string>('');
+    const [analysis, setAnalysis] = useState<QuestionAnalysisResponse | null>(null);
     const [expandedQueries, setExpandedQueries] = useState<string[]>([]);
     const [error, setError] = useState<string>('');
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [expandedQueriesMarkdown, setExpandedQueriesMarkdown] = useState<string>('');
     const [selectedSources, setSelectedSources] = useState<SearchResult[]>([]);
     const [sourceContent, setSourceContent] = useState<URLContent[]>([]);
     const [enhancedQuestion, setEnhancedQuestion] = useState<string>('');
@@ -42,7 +43,7 @@ const ResearchWorkflow: React.FC = () => {
     const handleQuestionSubmit = async (): Promise<void> => {
         setIsLoading(true);
         setError('');
-        setMarkdownContent('');
+        setAnalysisMarkdown('');
         setAnalysis(null);
 
         try {
@@ -61,12 +62,12 @@ const ResearchWorkflow: React.FC = () => {
 
                 accumulatedContent += update.data;
                 // Update display content
-                setMarkdownContent(accumulatedContent);
+                setAnalysisMarkdown(accumulatedContent);
             }
 
             // Parse the final accumulated content into structured analysis
             const sections = accumulatedContent.split('\n## ');
-            const finalAnalysis: QuestionAnalysisType = {
+            const finalAnalysis: QuestionAnalysisResponse = {
                 key_components: [],
                 scope_boundaries: [],
                 success_criteria: [],
@@ -110,6 +111,9 @@ const ResearchWorkflow: React.FC = () => {
 
         setIsLoading(true);
         setError('');
+        setExpandedQueriesMarkdown('');
+        setExpandedQueries([]);
+
         try {
             // Create an enhanced question that includes the analysis context
             const enhancedQuestionText = `
@@ -126,9 +130,32 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
             `.trim();
 
             setEnhancedQuestion(enhancedQuestionText);
-            const expanded = await researchApi.expandQuestion(enhancedQuestionText);
-            setExpandedQueries(expanded);
-            handleNext();
+
+            // Start the streaming expansion
+            const expansionStream = researchApi.expandQuestionStream(enhancedQuestionText);
+            let hasAdvanced = false;
+            let accumulatedContent = '';
+
+            // Process the stream
+            for await (const update of expansionStream) {
+                // Move to next step on first valid update
+                if (!hasAdvanced) {
+                    hasAdvanced = true;
+                    handleNext();
+                }
+
+                accumulatedContent += update.data;
+                setExpandedQueriesMarkdown(accumulatedContent);
+
+                // Extract queries from markdown content
+                // Assuming the format is a list with "- " prefix
+                const queries = accumulatedContent
+                    .split('\n')
+                    .filter(line => line.trim().startsWith('- '))
+                    .map(line => line.trim().slice(2));
+
+                setExpandedQueries(queries);
+            }
         } catch (err: unknown) {
             console.error('Error expanding question:', err);
             setError('Failed to expand question. Please try again.');
@@ -215,7 +242,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                 <QuestionAnalysis
                     {...props}
                     analysis={analysis}
-                    markdownContent={markdownContent}
+                    analysisMarkdown={analysisMarkdown}
                     isLoading={isLoading}
                     onProceed={handleQueryExpansion}
                 />
@@ -232,6 +259,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                     analysis={analysis!}
                     onSubmit={handleSubmitQueries}
                     expandedQueries={expandedQueries}
+                    expandedQueriesMarkdown={expandedQueriesMarkdown}
                     isSearching={isSearching}
                 />
             )

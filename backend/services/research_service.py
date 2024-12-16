@@ -137,6 +137,26 @@ class ResearchService:
             logger.error(f"Error expanding question: {str(e)}")
             return []
 
+    async def expand_question_stream(self, question: str):
+        """
+        Stream the question expansion process with detailed analysis and explanation.
+        
+        Args:
+            question (str): The question to expand
+            
+        Yields:
+            str: Markdown-formatted chunks of the expansion process
+        """
+        try:
+            logger.info(f"Expanding question (streaming): {question}")
+            
+            async for chunk in ai_service.expand_query_stream(question):
+                yield chunk
+
+        except Exception as e:
+            logger.error(f"Error in streaming expansion: {str(e)}")
+            yield "Error expanding question. Please try again.\n"
+
     async def analyze_question_scope_stream(self, question: str):
         """
         Stream the question analysis process.

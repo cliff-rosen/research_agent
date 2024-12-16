@@ -1,93 +1,53 @@
 import React from 'react';
+import { QuestionAnalysisResponse } from '../lib/api/researchApi';
 import ReactMarkdown from 'react-markdown';
-import { QuestionAnalysis as QuestionAnalysisType } from '../lib/api/researchApi';
 
 interface Props {
-    analysis: QuestionAnalysisType | null;
-    markdownContent: string;
+    analysis: QuestionAnalysisResponse | null;
+    analysisMarkdown: string;
     isLoading: boolean;
     onProceed: () => void;
 }
 
-const QuestionAnalysis: React.FC<Props> = ({ analysis, markdownContent, isLoading, onProceed }) => {
-    const hasContent = markdownContent.length > 0 || (analysis && analysis.key_components.length > 0);
-    const showMarkdown = markdownContent.length > 0 && (!analysis || analysis.key_components.length === 0);
-
+const QuestionAnalysis: React.FC<Props> = ({
+    analysis,
+    analysisMarkdown,
+    isLoading,
+    onProceed
+}) => {
     return (
-        <div className="space-y-6">
-            <div className="prose dark:prose-invert max-w-none">
-                <h2 className="text-2xl font-bold mb-4">Analysis</h2>
-                
-                {isLoading && !hasContent ? (
-                    <div className="animate-pulse space-y-2">
-                        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                        <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-                        <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-                        <div className="h-4 bg-gray-200 rounded w-4/5"></div>
-                    </div>
-                ) : showMarkdown ? (
-                    <div className="text-gray-700 dark:text-gray-300">
-                        <ReactMarkdown className="prose dark:prose-invert max-w-none">
-                            {markdownContent}
-                        </ReactMarkdown>
-                    </div>
-                ) : analysis ? (
-                    <div className="text-gray-700 dark:text-gray-300 space-y-4">
-                        {analysis.key_components.length > 0 && (
-                            <div>
-                                <h3 className="text-lg font-semibold mb-2">Key Components</h3>
-                                <ul className="list-disc pl-5 space-y-1">
-                                    {analysis.key_components.map((item, index) => (
-                                        <li key={`key-${index}`}>{item}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                        {analysis.scope_boundaries.length > 0 && (
-                            <div>
-                                <h3 className="text-lg font-semibold mb-2">Scope Boundaries</h3>
-                                <ul className="list-disc pl-5 space-y-1">
-                                    {analysis.scope_boundaries.map((item, index) => (
-                                        <li key={`scope-${index}`}>{item}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                        {analysis.success_criteria.length > 0 && (
-                            <div>
-                                <h3 className="text-lg font-semibold mb-2">Success Criteria</h3>
-                                <ul className="list-disc pl-5 space-y-1">
-                                    {analysis.success_criteria.map((item, index) => (
-                                        <li key={`success-${index}`}>{item}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                        {analysis.conflicting_viewpoints.length > 0 && (
-                            <div>
-                                <h3 className="text-lg font-semibold mb-2">Conflicting Viewpoints</h3>
-                                <ul className="list-disc pl-5 space-y-1">
-                                    {analysis.conflicting_viewpoints.map((item, index) => (
-                                        <li key={`conflict-${index}`}>{item}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                    </div>
-                ) : null}
+        <div className="space-y-6 text-gray-900 dark:text-gray-100">
+            <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold mb-2">AI Analysis</h3>
+                <div className="prose prose-sm md:prose-base lg:prose-lg dark:prose-invert max-w-none prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-strong:text-gray-900 dark:prose-strong:text-gray-100 prose-ul:list-disc prose-ol:list-decimal">
+                    <ReactMarkdown
+                        components={{
+                            p: ({ children }) => <p className="mb-4">{children}</p>,
+                            h1: ({ children }) => <h1 className="text-2xl font-bold mt-6 mb-4">{children}</h1>,
+                            h2: ({ children }) => <h2 className="text-xl font-bold mt-5 mb-3">{children}</h2>,
+                            h3: ({ children }) => <h3 className="text-lg font-bold mt-4 mb-2">{children}</h3>,
+                            ul: ({ children }) => <ul className="list-disc pl-6 mb-4">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal pl-6 mb-4">{children}</ol>,
+                            li: ({ children }) => <li className="mb-1">{children}</li>,
+                            code: ({ children }) => <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">{children}</code>,
+                        }}
+                    >
+                        {analysisMarkdown}
+                    </ReactMarkdown>
+                </div>
             </div>
 
-            <div className="flex justify-end mt-6">
+            <div className="flex justify-end">
                 <button
                     onClick={onProceed}
-                    disabled={isLoading || !hasContent}
+                    disabled={isLoading || !analysis}
                     className={`px-4 py-2 rounded-lg ${
-                        isLoading || !hasContent
+                        isLoading || !analysis
                             ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                             : 'bg-blue-600 text-white hover:bg-blue-700'
                     }`}
                 >
-                    {isLoading ? 'Analyzing...' : 'Continue'}
+                    {isLoading ? 'Analyzing...' : 'Proceed to Query Expansion'}
                 </button>
             </div>
         </div>

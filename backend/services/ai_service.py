@@ -115,6 +115,20 @@ Example response format:
 
 IMPORTANT: Your response must be ONLY a valid JSON object. Do not include any explanatory text, markdown formatting, or code blocks outside the JSON structure."""
 
+EXPAND_QUERY_ANALYSIS_PROMPT = """Given this research question, I'll help you break it down into effective search queries.
+I'll explain my thought process and provide a comprehensive set of search queries.
+
+Question: {question}
+
+Let me analyze this question and generate search queries that will help find relevant information:
+
+1. First, I'll identify the main concepts and key terms
+2. Then, I'll generate variations and related terms
+3. Finally, I'll combine these into specific search queries
+
+Here's my analysis:
+"""
+
 
 class AIService:
     def __init__(self):
@@ -216,24 +230,63 @@ class AIService:
             logger.error(f"Error in analyze_question_scope_stream: {str(e)}")
             raise
 
-    async def expand_query(self,
-                           query: str,
-                           model: Optional[str] = None
-                           ) -> List[str]:
+    async def expand_query(self, question: str) -> List[str]:
         """
-        Expand a query into related queries
+        Expand a question into multiple search queries.
+        """
+        try:
+            prompt = f"""Given this research question, generate a set of search queries that will help find relevant information.
+            Break down complex concepts and consider different aspects and phrasings.
+            
+            Question: {question}
+            
+            Return only the list of search queries, one per line starting with "- ".
+            """
+            
+            response = await self.openai_client.chat.completions.create(
+                model=settings.openai_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=1000
+            )
+            
+            queries = response.choices[0].message.content.strip().split('\n')
+            return [q.strip('- ').strip() for q in queries if q.strip().startswith('-')]
+            
+        except Exception as e:
+            logger.error(f"Error in expand_query: {str(e)}")
+            return []
 
-        Args:
-            query: The query to expand
-            model: Optional specific model to use
+    async def expand_query_stream(self, question: str):
         """
-        prompt = EXPAND_QUERY_PROMPT.format(query=query)
-        query_expansion = await self.provider.generate(
-            prompt=prompt,
-            model=model,
-            max_tokens=500
-        )
-        return query_expansion.split("\n")
+        Stream the process of expanding a question into search queries with explanations.
+        """
+        try:
+            messages = [{"role": "user", "content": question}]
+            
+            # First, get the expanded queries using the standard EXPAND_QUERY_PROMPT
+            expanded = await self.expand_query(question)
+            
+            # Then, generate the explanatory markdown
+            messages = [{"role": "user", "content": EXPAND_QUERY_ANALYSIS_PROMPT.format(question=question)}]
+            
+            response = await self.provider.create_chat_completion_stream(
+                messages=messages,
+                model=settings.openai_model
+            )
+            
+            # Stream the analysis first
+            async for chunk in response:
+                yield chunk
+            
+            # Then append the actual queries that were generated using EXPAND_QUERY_PROMPT
+            yield "\n\nGenerated Search Queries:\n"
+            for query in expanded:
+                yield f"- {query}\n"
+                    
+        except Exception as e:
+            logger.error(f"Error in expand_query_stream: {str(e)}")
+            yield "Error: Failed to expand query. Please try again.\n"
 
     async def get_research_answer(self,
                                   question: str,
