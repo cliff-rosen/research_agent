@@ -13,12 +13,39 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-class FetchURLsRequest(BaseModel):
-    """Request model for fetching multiple URLs"""
-    urls: List[str]
-
-
 ################## Search Routes ##################
+
+@router.post(
+    "/fetch-urls",
+    response_model=List[URLContent],
+    summary="Fetch and extract content from multiple URLs in parallel"
+)
+async def fetch_urls(request: FetchURLsRequest) -> List[URLContent]:
+    """
+    Fetch and extract content from multiple URLs in parallel.
+
+    Args:
+        request: FetchURLsRequest containing:
+            - urls: List of URLs to fetch content from
+
+    Returns:
+        List of URLContent objects, each containing:
+        - url: Original URL
+        - title: Page title
+        - text: Main content text
+        - error: Error message if failed
+    """
+    try:
+        return await search_service.fetch_urls_content(request.urls)
+    except Exception as e:
+        logger.error(f"Error in parallel URL fetching: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+### unused ###
+
 
 @router.get(
     "/search",
@@ -100,34 +127,4 @@ async def fetch_url(url: str = Query(..., description="URL to fetch content from
             title="",
             text="",
             error=str(e)
-        )
-
-
-@router.post(
-    "/fetch-urls",
-    response_model=List[URLContent],
-    summary="Fetch and extract content from multiple URLs in parallel"
-)
-async def fetch_urls(request: FetchURLsRequest) -> List[URLContent]:
-    """
-    Fetch and extract content from multiple URLs in parallel.
-
-    Args:
-        request: FetchURLsRequest containing:
-            - urls: List of URLs to fetch content from
-
-    Returns:
-        List of URLContent objects, each containing:
-        - url: Original URL
-        - title: Page title
-        - text: Main content text
-        - error: Error message if failed
-    """
-    try:
-        return await search_service.fetch_urls_content(request.urls)
-    except Exception as e:
-        logger.error(f"Error in parallel URL fetching: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
         )

@@ -5,23 +5,12 @@ from pydantic import BaseModel, Field
 from database import get_db
 from services import auth_service, ai_service
 from services.research_service import research_service
-from schemas import SearchResult, ResearchAnswer, URLContent, QuestionAnalysis
+from schemas import SearchResult, ResearchAnswer, URLContent, QuestionAnalysis, ExecuteQueriesRequest, GetResearchAnswerRequest
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-class ExecuteQueriesRequest(BaseModel):
-    queries: List[str]
-
-
-class GetResearchAnswerRequest(BaseModel):
-    """Request model for getting research answers"""
-    question: str = Field(description="The research question to answer")
-    source_content: List[URLContent] = Field(
-        description="List of URL content to analyze")
 
 
 @router.get(
@@ -207,5 +196,4 @@ async def get_research_answer(
         question=request.question,
         source_content=request.source_content
     )
-
     return result

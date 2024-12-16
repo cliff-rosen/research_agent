@@ -98,6 +98,18 @@ class QuestionAnalysis(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ExecuteQueriesRequest(BaseModel):
+    """Request model for executing multiple search queries"""
+    queries: List[str] = Field(description="List of search queries to execute")
+
+
+class GetResearchAnswerRequest(BaseModel):
+    """Request model for getting research answers"""
+    question: str = Field(description="The research question to answer")
+    source_content: List[URLContent] = Field(
+        description="List of URL content to analyze")
+
+
 class ResearchAnswer(BaseModel):
     """Schema for final research answer"""
     answer: str = Field(description="Final synthesized answer")
