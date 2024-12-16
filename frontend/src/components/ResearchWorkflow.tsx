@@ -49,6 +49,7 @@ const ResearchWorkflow: React.FC = () => {
             // Start the streaming analysis
             const analysisStream = researchApi.analyzeQuestionStream(question);
             let hasAdvanced = false;
+            let accumulatedContent = '';
 
             // Process the stream
             for await (const update of analysisStream) {
@@ -58,14 +59,13 @@ const ResearchWorkflow: React.FC = () => {
                     handleNext();
                 }
 
-                // Update markdown content
-                setMarkdownContent(prev => prev + update.data);
+                accumulatedContent += update.data;
+                // Update display content
+                setMarkdownContent(accumulatedContent);
             }
 
-            // console.log('markdownContent\n', markdownContent);
-
-            // Parse the final markdown into structured analysis for the next step
-            const sections = markdownContent.split('\n## ');
+            // Parse the final accumulated content into structured analysis
+            const sections = accumulatedContent.split('\n## ');
             const finalAnalysis: QuestionAnalysisType = {
                 key_components: [],
                 scope_boundaries: [],
