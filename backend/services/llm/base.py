@@ -1,5 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, Any
+import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class LLMProvider(ABC):
@@ -35,3 +39,16 @@ class LLMProvider(ABC):
     async def close(self):
         """Cleanup resources"""
         pass
+
+    def _log_request_stats(self,
+                           method: str,
+                           model: str,
+                           start_time: float,
+                           input_tokens: int,
+                           output_tokens: int):
+        duration = time.time() - start_time
+        logger.info(
+            f"LLM Request Stats - Method: {method}, Model: {model}, "
+            f"Duration: {duration:.2f}s, Input Tokens: {input_tokens}, "
+            f"Output Tokens: {output_tokens}, Total Tokens: {input_tokens + output_tokens}"
+        )
