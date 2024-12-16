@@ -61,7 +61,9 @@ const ResearchWorkflow: React.FC = () => {
                 // Update markdown content
                 setMarkdownContent(prev => prev + update.data);
             }
-            console.log('markdownContent', markdownContent);
+
+            // console.log('markdownContent\n', markdownContent);
+
             // Parse the final markdown into structured analysis for the next step
             const sections = markdownContent.split('\n## ');
             const finalAnalysis: QuestionAnalysisType = {

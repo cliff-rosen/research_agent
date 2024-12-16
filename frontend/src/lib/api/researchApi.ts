@@ -88,12 +88,14 @@ export const researchApi = {
         try {
             while (true) {
                 const { done, value } = await reader.read();
-                if (done) break;
-
-                const text = decoder.decode(value, { stream: true });
-                if (text) {
-                    yield { data: text };
+                if (done) {
+                    const final = decoder.decode(); // Flush any remaining bytes
+                    if (final) yield { data: final };
+                    break;
                 }
+
+                const decoded = decoder.decode(value, { stream: true });
+                if (decoded) yield { data: decoded };
             }
         } finally {
             reader.releaseLock();

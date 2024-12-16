@@ -146,7 +146,7 @@ class ResearchService:
             
             async for chunk in ai_service.analyze_question_scope_stream(question):
                 # Stream the markdown text directly
-                yield chunk + "\n"
+                yield chunk
 
         except Exception as e:
             logger.error(f"Error in streaming analysis: {str(e)}")
