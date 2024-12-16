@@ -6,38 +6,14 @@ import SourceSelection from './SourceSelection';
 import QuestionAnalysis from './QuestionAnalysis';
 import SourceAnalysis from './SourceAnalysis';
 import ResearchAnswer from './ResearchAnswer';
+import InitialQuestion from './InitialQuestion';
 
 interface WorkflowStep {
     label: string;
     description: string;
+    action: (data?: any) => Promise<void>;
+    component: (props: any) => JSX.Element;
 }
-
-const workflowSteps: WorkflowStep[] = [
-    {
-        label: 'Initial Question',
-        description: 'Enter your research question with as much context as possible'
-    },
-    {
-        label: 'Question Analysis',
-        description: 'Review the breakdown of your question into key components'
-    },
-    {
-        label: 'Query Expansion',
-        description: 'View and edit related search terms and alternative phrasings'
-    },
-    {
-        label: 'Source Selection',
-        description: 'Review and select relevant sources'
-    },
-    {
-        label: 'Source Analysis',
-        description: 'Review extracted information and conflicts'
-    },
-    {
-        label: 'Research Answer',
-        description: 'View the research answer with citations and confidence levels'
-    }
-];
 
 const ResearchWorkflow: React.FC = () => {
     const [activeStep, setActiveStep] = useState(0);
@@ -48,7 +24,7 @@ const ResearchWorkflow: React.FC = () => {
     const [error, setError] = useState<string>('');
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
-    const [selectedSources, setSelectedSources] = useState<SearchResult[]>([]);
+    const [_selectedSources, setSelectedSources] = useState<SearchResult[]>([]);
     const [sourceContent, setSourceContent] = useState<URLContent[]>([]);
     const [enhancedQuestion, setEnhancedQuestion] = useState<string>('');
     const [researchAnswer, setResearchAnswer] = useState<ResearchAnswerType | null>(null);
@@ -61,6 +37,7 @@ const ResearchWorkflow: React.FC = () => {
         setActiveStep((prev) => prev - 1);
     };
 
+    // Step 1 handler: Analyze the question
     const handleQuestionSubmit = async () => {
         setIsLoading(true);
         setError('');
@@ -76,6 +53,7 @@ const ResearchWorkflow: React.FC = () => {
         }
     };
 
+    // Step 2 handler: Expand the question
     const handleQueryExpansion = async () => {
         if (!analysis) return;
 
@@ -108,6 +86,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         }
     };
 
+    // Step 3: Execute the queries
     const handleSubmitQueries = async (queries: string[]) => {
         try {
             setIsSearching(true);
@@ -122,6 +101,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         }
     };
 
+    // Step 4 handler: Select sources
     const handleSourceSelection = async (selected: SearchResult[]) => {
         try {
             setIsLoading(true);
@@ -143,6 +123,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         }
     };
 
+    // Step 5 handler: Analyze the sources
     const handleAnalysisProceed = async () => {
         try {
             setIsLoading(true);
@@ -159,38 +140,30 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         }
     };
 
-    const renderStepContent = (step: number) => {
-        switch (step) {
-            case 0:
-                return (
-                    <div className="space-y-4">
-                        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                            Enter Your Research Question
-                        </h2>
-                        <textarea
-                            className="w-full h-32 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700"
-                            value={question}
-                            onChange={(e) => setQuestion(e.target.value)}
-                            placeholder="Enter your research question here..."
-                        />
-                        {error && (
-                            <div className="text-red-500 text-sm">{error}</div>
-                        )}
-                        <button
-                            className={`px-4 py-2 rounded-lg text-white ${isLoading || !question.trim()
-                                    ? 'bg-gray-400 cursor-not-allowed'
-                                    : 'bg-blue-600 hover:bg-blue-700'
-                                }`}
-                            onClick={handleQuestionSubmit}
-                            disabled={!question.trim() || isLoading}
-                        >
-                            {isLoading ? 'Processing...' : 'Analyze Question'}
-                        </button>
-                    </div>
-                );
-            case 1:
-                return analysis ? (
+    const workflowSteps: WorkflowStep[] = [
+        {
+            label: 'Initial Question',
+            description: 'Enter your research question with as much context as possible',
+            action: handleQuestionSubmit,
+            component: (props) => (
+                <InitialQuestion
+                    {...props}
+                    question={question}
+                    isLoading={isLoading}
+                    error={error}
+                    onQuestionChange={setQuestion}
+                    onSubmit={handleQuestionSubmit}
+                />
+            )
+        },
+        {
+            label: 'Question Analysis',
+            description: 'Review the breakdown of your question into key components',
+            action: handleQueryExpansion,
+            component: (props) => (
+                analysis ? (
                     <QuestionAnalysis
+                        {...props}
                         analysis={analysis}
                         isLoading={isLoading}
                         onProceed={handleQueryExpansion}
@@ -199,37 +172,58 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                     <div className="text-gray-600 dark:text-gray-400">
                         No analysis available. Please go back and submit a question.
                     </div>
-                );
-            case 2:
-                return (
-                    <div className="space-y-6">
-                        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                            Expanded Search Queries
-                        </h2>
-                        <QuestionExpansion 
-                            question={question}
-                            analysis={analysis!}
-                            onSubmit={handleSubmitQueries}
-                            expandedQueries={expandedQueries}
-                            isSearching={isSearching}
-                        />
-                    </div>
-                );
-            case 3:
-                return <SourceSelection 
+                )
+            )
+        },
+        {
+            label: 'Query Expansion',
+            description: 'View and edit related search terms and alternative phrasings',
+            action: handleSubmitQueries,
+            component: (props) => (
+                <QuestionExpansion 
+                    {...props}
+                    question={question}
+                    analysis={analysis!}
+                    onSubmit={handleSubmitQueries}
+                    expandedQueries={expandedQueries}
+                    isSearching={isSearching}
+                />
+            )
+        },
+        {
+            label: 'Source Selection',
+            description: 'Review and select relevant sources',
+            action: handleSourceSelection,
+            component: (props) => (
+                <SourceSelection 
+                    {...props}
                     searchResults={searchResults} 
                     onSubmitSelected={handleSourceSelection}
                     isSubmitting={isLoading}
-                />;
-            case 4:
-                return <SourceAnalysis 
+                />
+            )
+        },
+        {
+            label: 'Source Analysis',
+            description: 'Review extracted information and conflicts',
+            action: handleAnalysisProceed,
+            component: (props) => (
+                <SourceAnalysis 
+                    {...props}
                     sourceContent={sourceContent}
                     isLoading={isLoading}
                     onProceed={handleAnalysisProceed}
-                />;
-            case 5:
-                return researchAnswer ? (
+                />
+            )
+        },
+        {
+            label: 'Research Answer',
+            description: 'View the research answer with citations and confidence levels',
+            action: async () => Promise.resolve(),
+            component: (props) => (
+                researchAnswer ? (
                     <ResearchAnswer 
+                        {...props}
                         answer={researchAnswer}
                         originalQuestion={question}
                         analysis={analysis!}
@@ -238,16 +232,14 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                     <div className="text-gray-600 dark:text-gray-400">
                         No research answer available. Please go back and try again.
                     </div>
-                );
-            default:
-                return (
-                    <div className="p-4">
-                        <p className="text-gray-600 dark:text-gray-400">
-                            Step content in development
-                        </p>
-                    </div>
-                );
+                )
+            )
         }
+    ];
+
+    const renderStepContent = (step: number) => {
+        const currentStep = workflowSteps[step];
+        return currentStep.component({});
     };
 
     return (

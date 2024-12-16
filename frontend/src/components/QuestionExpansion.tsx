@@ -16,6 +16,9 @@ const QuestionExpansion: React.FC<QuestionExpansionProps> = ({
 }) => {
     return (
         <div className="space-y-4">
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                Expanded Search Queries
+            </h2>
             <p className="text-gray-600 dark:text-gray-400">
                 Based on your question and its analysis, here are the expanded search queries:
             </p>

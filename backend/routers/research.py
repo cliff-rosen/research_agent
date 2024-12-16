@@ -5,19 +5,12 @@ from pydantic import BaseModel, Field
 from database import get_db
 from services import auth_service, ai_service
 from services.research_service import research_service
-from schemas import SearchResult, ResearchAnswer, URLContent
+from schemas import SearchResult, ResearchAnswer, URLContent, QuestionAnalysis
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-class QuestionAnalysisResponse(BaseModel):
-    key_components: List[str]
-    scope_boundaries: List[str]
-    success_criteria: List[str]
-    conflicting_viewpoints: List[str]
 
 
 class ExecuteQueriesRequest(BaseModel):
@@ -33,7 +26,7 @@ class GetResearchAnswerRequest(BaseModel):
 
 @router.get(
     "/analyze-question",
-    response_model=QuestionAnalysisResponse,
+    response_model=QuestionAnalysis,
     summary="Analyze a question to identify key components and scope",
     responses={
         200: {
