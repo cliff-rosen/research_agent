@@ -17,18 +17,22 @@ interface WorkflowStep {
 
 const ResearchWorkflow: React.FC = () => {
     const [activeStep, setActiveStep] = useState(0);
-    const [question, setQuestion] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isSearching, setIsSearching] = useState(false);
+    const [error, setError] = useState<string>('');
+ 
+    const [question, setQuestion] = useState('');
+
     const [analysisMarkdown, setAnalysisMarkdown] = useState<string>('');
     const [analysis, setAnalysis] = useState<QuestionAnalysisResponse | null>(null);
-    const [expandedQueries, setExpandedQueries] = useState<string[]>([]);
-    const [error, setError] = useState<string>('');
-    const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-    const [isSearching, setIsSearching] = useState(false);
+
+    const [enhancedQuestion, setEnhancedQuestion] = useState<string>('');
     const [expandedQueriesMarkdown, setExpandedQueriesMarkdown] = useState<string>('');
+    const [expandedQueries, setExpandedQueries] = useState<string[]>([]);
+
+    const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [selectedSources, setSelectedSources] = useState<SearchResult[]>([]);
     const [sourceContent, setSourceContent] = useState<URLContent[]>([]);
-    const [enhancedQuestion, setEnhancedQuestion] = useState<string>('');
     const [researchAnswer, setResearchAnswer] = useState<ResearchAnswerType | null>(null);
 
     const handleNext = (): void => {
@@ -260,7 +264,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                     onSubmit={handleSubmitQueries}
                     expandedQueries={expandedQueries}
                     expandedQueriesMarkdown={expandedQueriesMarkdown}
-                    isSearching={isSearching}
+                    isLoading={isLoading}
                 />
             )
         },
