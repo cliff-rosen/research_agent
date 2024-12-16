@@ -8,10 +8,22 @@ from schemas import QuestionAnalysis, ResearchAnswer, URLContent
 
 logger = logging.getLogger(__name__)
 
-EXPAND_QUERY_PROMPT = """
-You are a search query expansion expert that helps users find comprehensive information by generating relevant alternative search queries. Expand the following query into a list of related queries separated by newlines: 
-{query}\
-"""
+EXPAND_QUESTION_PROMPT = """You are a search query expansion expert that helps users find comprehensive information by generating relevant alternative search queries.
+
+Break down the question into multiple search queries that will help find comprehensive information. Consider:
+- Different aspects and phrasings of the concepts
+- Alternative terminology
+- Related subtopics
+- Specific and general versions of the query
+
+Return ONLY a list of search queries, with each query on a new line starting with "- ".
+
+Example format:
+- first search query here
+- second search query here
+- third search query here
+
+IMPORTANT: Return ONLY the list of queries with "- " prefix. Do not include any sections, explanations, or other formatting."""
 
 ANALYZE_QUESTION_PROMPT = """You are an expert research analyst. Analyze the given question and break down your analysis into clear sections using markdown.
 
@@ -114,20 +126,6 @@ Example response format:
 }}
 
 IMPORTANT: Your response must be ONLY a valid JSON object. Do not include any explanatory text, markdown formatting, or code blocks outside the JSON structure."""
-
-EXPAND_QUERY_ANALYSIS_PROMPT = """Given this research question, I'll help you break it down into effective search queries.
-I'll explain my thought process and provide a comprehensive set of search queries.
-
-Question: {question}
-
-Let me analyze this question and generate search queries that will help find relevant information:
-
-1. First, I'll identify the main concepts and key terms
-2. Then, I'll generate variations and related terms
-3. Finally, I'll combine these into specific search queries
-
-Here's my analysis:
-"""
 
 
 class AIService:
@@ -244,7 +242,6 @@ class AIService:
             """
             
             response = await self.openai_client.chat.completions.create(
-                model=settings.openai_model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_tokens=1000
@@ -262,27 +259,14 @@ class AIService:
         Stream the process of expanding a question into search queries with explanations.
         """
         try:
-            messages = [{"role": "user", "content": question}]
+            # Generate the explanatory markdown
+            messages = [{"role": "user", "content": f"Question: {question}"}]
             
-            # First, get the expanded queries using the standard EXPAND_QUERY_PROMPT
-            expanded = await self.expand_query(question)
-            
-            # Then, generate the explanatory markdown
-            messages = [{"role": "user", "content": EXPAND_QUERY_ANALYSIS_PROMPT.format(question=question)}]
-            
-            response = await self.provider.create_chat_completion_stream(
+            async for chunk in self.provider.create_chat_completion_stream(
                 messages=messages,
-                model=settings.openai_model
-            )
-            
-            # Stream the analysis first
-            async for chunk in response:
+                system=EXPAND_QUESTION_PROMPT
+            ):
                 yield chunk
-            
-            # Then append the actual queries that were generated using EXPAND_QUERY_PROMPT
-            yield "\n\nGenerated Search Queries:\n"
-            for query in expanded:
-                yield f"- {query}\n"
                     
         except Exception as e:
             logger.error(f"Error in expand_query_stream: {str(e)}")
