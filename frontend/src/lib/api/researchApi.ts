@@ -1,5 +1,6 @@
 import { api, handleApiError } from './index'
 import { SearchResult, URLContent } from './searchApi'
+import settings from '../../config/settings'
 
 export interface QuestionAnalysis {
     key_components: string[];
@@ -12,6 +13,10 @@ export interface ResearchAnswer {
     answer: string;
     sources_used: string[];
     confidence_score: number;
+}
+
+export interface StreamUpdate {
+    data: string;
 }
 
 export type AnalyzeQuestionResponse = QuestionAnalysis;
@@ -55,6 +60,43 @@ export const researchApi = {
             return response.data;
         } catch (error) {
             throw handleApiError(error);
+        }
+    },
+
+    analyzeQuestionStream: async function* (question: string): AsyncGenerator<StreamUpdate> {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch(
+            `${settings.apiUrl}/api/research/analyze-question/stream?question=${encodeURIComponent(question)}`,
+            {
+                headers: {
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                },
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error('Failed to analyze question');
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+            throw new Error('Stream not available');
+        }
+
+        const decoder = new TextDecoder();
+
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const text = decoder.decode(value, { stream: true });
+                if (text) {
+                    yield { data: text };
+                }
+            }
+        } finally {
+            reader.releaseLock();
         }
     },
 

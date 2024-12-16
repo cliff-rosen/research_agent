@@ -5,6 +5,9 @@ from config.settings import settings
 from services.ai_service import ai_service
 from services.search_service import google_search, score_and_rank_results
 from schemas import SearchResult, QuestionAnalysis
+from fastapi.responses import StreamingResponse
+import json
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +136,21 @@ class ResearchService:
         except Exception as e:
             logger.error(f"Error expanding question: {str(e)}")
             return []
+
+    async def analyze_question_scope_stream(self, question: str):
+        """
+        Stream the question analysis process.
+        """
+        try:
+            logger.info(f"Analyzing question (streaming): {question}")
+            
+            async for chunk in ai_service.analyze_question_scope_stream(question):
+                # Stream the markdown text directly
+                yield chunk + "\n"
+
+        except Exception as e:
+            logger.error(f"Error in streaming analysis: {str(e)}")
+            yield "Error analyzing question. Please try again.\n"
 
 
 # Create a singleton instance

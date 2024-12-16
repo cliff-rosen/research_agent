@@ -19,34 +19,83 @@ const ResearchWorkflow: React.FC = () => {
     const [activeStep, setActiveStep] = useState(0);
     const [question, setQuestion] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [markdownContent, setMarkdownContent] = useState<string>('');
     const [analysis, setAnalysis] = useState<QuestionAnalysisType | null>(null);
     const [expandedQueries, setExpandedQueries] = useState<string[]>([]);
     const [error, setError] = useState<string>('');
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
-    const [_selectedSources, setSelectedSources] = useState<SearchResult[]>([]);
+    const [selectedSources, setSelectedSources] = useState<SearchResult[]>([]);
     const [sourceContent, setSourceContent] = useState<URLContent[]>([]);
     const [enhancedQuestion, setEnhancedQuestion] = useState<string>('');
     const [researchAnswer, setResearchAnswer] = useState<ResearchAnswerType | null>(null);
 
-    const handleNext = () => {
+    const handleNext = (): void => {
         setActiveStep((prev) => prev + 1);
     };
 
-    const handleBack = () => {
+    const handleBack = (): void => {
         setActiveStep((prev) => prev - 1);
     };
 
     // Step 1 handler: Analyze the question
-    const handleQuestionSubmit = async () => {
+    const handleQuestionSubmit = async (): Promise<void> => {
         setIsLoading(true);
         setError('');
+        setMarkdownContent('');
+        setAnalysis(null);
+
         try {
-            const analysisResult = await researchApi.analyzeQuestion(question);
-            setAnalysis(analysisResult);
-            handleNext();
-        } catch (error) {
-            console.error('Error processing question:', error);
+            // Start the streaming analysis
+            const analysisStream = researchApi.analyzeQuestionStream(question);
+            let hasAdvanced = false;
+
+            // Process the stream
+            for await (const update of analysisStream) {
+                // Move to next step on first valid update
+                if (!hasAdvanced) {
+                    hasAdvanced = true;
+                    handleNext();
+                }
+
+                // Update markdown content
+                setMarkdownContent(prev => prev + update.data);
+            }
+            console.log('markdownContent', markdownContent);
+            // Parse the final markdown into structured analysis for the next step
+            const sections = markdownContent.split('\n## ');
+            const finalAnalysis: QuestionAnalysisType = {
+                key_components: [],
+                scope_boundaries: [],
+                success_criteria: [],
+                conflicting_viewpoints: []
+            };
+
+            sections.forEach(section => {
+                const lines = section.split('\n');
+                const firstLine = lines[0].toLowerCase().trim();
+                const items = lines
+                    .slice(1)
+                    .filter(line => line.trim().startsWith('- '))
+                    .map(line => line.trim().slice(2));
+
+                if (firstLine.includes('key components')) {
+                    finalAnalysis.key_components = items;
+                }
+                else if (firstLine.includes('scope boundaries')) {
+                    finalAnalysis.scope_boundaries = items;
+                }
+                else if (firstLine.includes('success criteria')) {
+                    finalAnalysis.success_criteria = items;
+                }
+                else if (firstLine.includes('conflicting viewpoints')) {
+                    finalAnalysis.conflicting_viewpoints = items;
+                }
+            });
+
+            setAnalysis(finalAnalysis);
+        } catch (err: unknown) {
+            console.error('Error processing question:', err);
             setError('Failed to analyze question. Please try again.');
         } finally {
             setIsLoading(false);
@@ -54,7 +103,7 @@ const ResearchWorkflow: React.FC = () => {
     };
 
     // Step 2 handler: Expand the question
-    const handleQueryExpansion = async () => {
+    const handleQueryExpansion = async (): Promise<void> => {
         if (!analysis) return;
 
         setIsLoading(true);
@@ -78,8 +127,8 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
             const expanded = await researchApi.expandQuestion(enhancedQuestionText);
             setExpandedQueries(expanded);
             handleNext();
-        } catch (error) {
-            console.error('Error expanding question:', error);
+        } catch (err: unknown) {
+            console.error('Error expanding question:', err);
             setError('Failed to expand question. Please try again.');
         } finally {
             setIsLoading(false);
@@ -87,14 +136,14 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
     };
 
     // Step 3: Execute the queries
-    const handleSubmitQueries = async (queries: string[]) => {
+    const handleSubmitQueries = async (queries: string[]): Promise<void> => {
         try {
             setIsSearching(true);
             const results = await researchApi.executeQueries(queries);
             setSearchResults(results);
             handleNext();
-        } catch (error) {
-            console.error('Error executing queries:', error);
+        } catch (err: unknown) {
+            console.error('Error executing queries:', err);
             setError('Failed to execute search queries. Please try again.');
         } finally {
             setIsSearching(false);
@@ -102,21 +151,21 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
     };
 
     // Step 4 handler: Select sources
-    const handleSourceSelection = async (selected: SearchResult[]) => {
+    const handleSourceSelection = async (selected: SearchResult[]): Promise<void> => {
         try {
             setIsLoading(true);
             setSelectedSources(selected);
-            
+
             // Extract URLs from selected sources
             const urls = selected.map(source => source.link);
-            
+
             // Fetch content for all selected URLs
             const content = await searchApi.fetchUrls(urls);
             setSourceContent(content);
-            
+
             handleNext();
-        } catch (error) {
-            console.error('Error fetching source content:', error);
+        } catch (err: unknown) {
+            console.error('Error fetching source content:', err);
             setError('Failed to fetch source content. Please try again.');
         } finally {
             setIsLoading(false);
@@ -128,7 +177,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         try {
             setIsLoading(true);
             setError('');
-            
+
             const answer = await researchApi.getResearchAnswer(enhancedQuestion, sourceContent);
             setResearchAnswer(answer);
             handleNext();
@@ -161,18 +210,13 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
             description: 'Review the breakdown of your question into key components',
             action: handleQueryExpansion,
             component: (props) => (
-                analysis ? (
-                    <QuestionAnalysis
-                        {...props}
-                        analysis={analysis}
-                        isLoading={isLoading}
-                        onProceed={handleQueryExpansion}
-                    />
-                ) : (
-                    <div className="text-gray-600 dark:text-gray-400">
-                        No analysis available. Please go back and submit a question.
-                    </div>
-                )
+                <QuestionAnalysis
+                    {...props}
+                    analysis={analysis}
+                    markdownContent={markdownContent}
+                    isLoading={isLoading}
+                    onProceed={handleQueryExpansion}
+                />
             )
         },
         {
@@ -180,7 +224,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
             description: 'View and edit related search terms and alternative phrasings',
             action: handleSubmitQueries,
             component: (props) => (
-                <QuestionExpansion 
+                <QuestionExpansion
                     {...props}
                     question={question}
                     analysis={analysis!}
@@ -195,9 +239,9 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
             description: 'Review and select relevant sources',
             action: handleSourceSelection,
             component: (props) => (
-                <SourceSelection 
+                <SourceSelection
                     {...props}
-                    searchResults={searchResults} 
+                    searchResults={searchResults}
                     onSubmitSelected={handleSourceSelection}
                     isSubmitting={isLoading}
                 />
@@ -208,7 +252,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
             description: 'Review extracted information and conflicts',
             action: handleAnalysisProceed,
             component: (props) => (
-                <SourceAnalysis 
+                <SourceAnalysis
                     {...props}
                     sourceContent={sourceContent}
                     isLoading={isLoading}
@@ -222,7 +266,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
             action: async () => Promise.resolve(),
             component: (props) => (
                 researchAnswer ? (
-                    <ResearchAnswer 
+                    <ResearchAnswer
                         {...props}
                         answer={researchAnswer}
                         originalQuestion={question}

@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Query, Body
+from fastapi import APIRouter, Depends, Query, Body, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, TypedDict
 from pydantic import BaseModel, Field
@@ -197,3 +198,46 @@ async def get_research_answer(
         source_content=request.source_content
     )
     return result
+
+
+@router.get(
+    "/analyze-question/stream",
+    summary="Stream the question analysis process",
+    responses={
+        200: {
+            "description": "Question analysis streamed successfully",
+            "content": {
+                "application/x-ndjson": {
+                    "example": {
+                        "type": "key_components",
+                        "data": ["component1", "component2"]
+                    }
+                }
+            }
+        },
+        401: {"description": "Not authenticated"}
+    }
+)
+async def analyze_question_stream(
+    question: str = Query(
+        description="The question to analyze for scope and components"
+    ),
+    current_user=Depends(auth_service.validate_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Stream the question analysis process, returning components as they are generated.
+    
+    Parameters:
+    - **question**: The input question to analyze
+    
+    Returns a stream of JSON objects, each containing:
+    - **type**: The type of data being returned (key_components, scope_boundaries, etc.)
+    - **data**: The actual data for that component
+    """
+    logger.info(f"analyze_question_stream endpoint called with question: {question}")
+    
+    return StreamingResponse(
+        research_service.analyze_question_scope_stream(question),
+        media_type="application/x-ndjson"
+    )

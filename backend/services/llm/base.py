@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, AsyncGenerator
 import time
 import logging
 
@@ -24,6 +24,15 @@ class LLMProvider(ABC):
         pass
 
     @abstractmethod
+    async def generate_stream(self,
+                             prompt: str,
+                             model: Optional[str] = None,
+                             max_tokens: Optional[int] = None
+                             ) -> AsyncGenerator[str, None]:
+        """Generate a streaming response from the LLM"""
+        pass
+
+    @abstractmethod
     async def create_chat_completion(
         self,
         messages: List[Dict[str, str]],
@@ -33,6 +42,18 @@ class LLMProvider(ABC):
         **kwargs: Any
     ) -> str:
         """Create a chat completion with the given messages"""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def create_chat_completion_stream(
+        self,
+        messages: List[Dict[str, str]],
+        model: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+        system: Optional[str] = None,
+        **kwargs: Any
+    ) -> AsyncGenerator[str, None]:
+        """Create a streaming chat completion with the given messages"""
         raise NotImplementedError
 
     @abstractmethod
