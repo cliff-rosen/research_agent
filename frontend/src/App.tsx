@@ -4,6 +4,7 @@ import { ThemeProvider } from './context/ThemeContext'
 import { useAuth } from './context/AuthContext'
 import { useEffect, useState } from 'react'
 import { setSessionExpiredHandler } from './lib/api'
+import { setStreamSessionExpiredHandler } from './lib/api/streamUtils'
 import LoginForm from './components/auth/LoginForm'
 import ResearchWorkflow from './components/ResearchWorkflow'
 
@@ -13,6 +14,7 @@ function App() {
 
   useEffect(() => {
     setSessionExpiredHandler(handleSessionExpired)
+    setStreamSessionExpiredHandler(handleSessionExpired)
     return () => setSessionExpiredHandler(() => { })
   }, [handleSessionExpired])
 

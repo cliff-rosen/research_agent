@@ -18,7 +18,7 @@ class AnthropicProvider(LLMProvider):
             api_key=settings.ANTHROPIC_API_KEY)
 
     def get_default_model(self) -> str:
-        return "claude-3-sonnet-20240229"
+        return "claude-3-5-sonnet-20241022"
 
     async def generate(self,
                        prompt: str,
@@ -52,10 +52,10 @@ class AnthropicProvider(LLMProvider):
             raise
 
     async def generate_stream(self,
-                             prompt: str,
-                             model: Optional[str] = None,
-                             max_tokens: Optional[int] = None
-                             ) -> AsyncGenerator[str, None]:
+                              prompt: str,
+                              model: Optional[str] = None,
+                              max_tokens: Optional[int] = None
+                              ) -> AsyncGenerator[str, None]:
         try:
             start_time = time.time()
             model = model or self.get_default_model()
@@ -154,7 +154,7 @@ class AnthropicProvider(LLMProvider):
                 params["system"] = system
 
             stream = await self.client.messages.create(**params)
-            
+
             # For streaming, we can't get exact token counts during the stream
             # We'll log a simplified version at the end
             async for message in stream:

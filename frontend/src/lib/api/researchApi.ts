@@ -1,6 +1,6 @@
 import { api, handleApiError } from './index'
 import { SearchResult, URLContent } from './searchApi'
-import settings from '../../config/settings'
+import { makeStreamRequest, StreamUpdate } from './streamUtils'
 
 export interface QuestionAnalysisResponse {
     key_components: string[];
@@ -15,68 +15,15 @@ export interface ResearchAnswer {
     confidence_score: number;
 }
 
-export interface StreamUpdate {
-    data: string;
-}
-
-export type { SearchResult };
+export type { SearchResult, StreamUpdate };
 
 export const researchApi = {
-    analyzeQuestion: async (question: string): Promise<QuestionAnalysisResponse> => {
-        try {
-            const response = await api.get(`/api/research/analyze-question?question=${encodeURIComponent(question)}`);
-            return response.data;
-        } catch (error) {
-            throw handleApiError(error);
-        }
-    },
-
-    expandQuestion: async (question: string): Promise<string[]> => {
-        try {
-            const response = await api.get(`/api/research/expand-question?question=${encodeURIComponent(question)}`);
-            return response.data;
-        } catch (error) {
-            throw handleApiError(error);
-        }
+    analyzeQuestionStream: async function* (question: string): AsyncGenerator<StreamUpdate> {
+        yield* makeStreamRequest('/api/research/analyze-question/stream', { question });
     },
 
     expandQuestionStream: async function* (question: string): AsyncGenerator<StreamUpdate> {
-        const token = localStorage.getItem('authToken');
-        const response = await fetch(
-            `${settings.apiUrl}/api/research/expand-question/stream?question=${encodeURIComponent(question)}`,
-            {
-                headers: {
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-                },
-            }
-        );
-
-        if (!response.ok) {
-            throw new Error('Failed to expand question');
-        }
-
-        const reader = response.body?.getReader();
-        if (!reader) {
-            throw new Error('Stream not available');
-        }
-
-        const decoder = new TextDecoder();
-
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) {
-                    const final = decoder.decode(); // Flush any remaining bytes
-                    if (final) yield { data: final };
-                    break;
-                }
-
-                const decoded = decoder.decode(value, { stream: true });
-                if (decoded) yield { data: decoded };
-            }
-        } finally {
-            reader.releaseLock();
-        }
+        yield* makeStreamRequest('/api/research/expand-question/stream', { question });
     },
 
     executeQueries: async (queries: string[]): Promise<SearchResult[]> => {
@@ -100,45 +47,28 @@ export const researchApi = {
         }
     },
 
-    analyzeQuestionStream: async function* (question: string): AsyncGenerator<StreamUpdate> {
-        const token = localStorage.getItem('authToken');
-        const response = await fetch(
-            `${settings.apiUrl}/api/research/analyze-question/stream?question=${encodeURIComponent(question)}`,
-            {
-                headers: {
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-                },
-            }
-        );
+    // Add utility functions for consistency
+    handleError: handleApiError,
 
-        if (!response.ok) {
-            throw new Error('Failed to analyze question');
-        }
-
-        const reader = response.body?.getReader();
-        if (!reader) {
-            throw new Error('Stream not available');
-        }
-
-        const decoder = new TextDecoder();
-
+    // DEPRECATED
+    
+    analyzeQuestion: async (question: string): Promise<QuestionAnalysisResponse> => {
         try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) {
-                    const final = decoder.decode(); // Flush any remaining bytes
-                    if (final) yield { data: final };
-                    break;
-                }
-
-                const decoded = decoder.decode(value, { stream: true });
-                if (decoded) yield { data: decoded };
-            }
-        } finally {
-            reader.releaseLock();
+            const response = await api.get(`/api/research/analyze-question?question=${encodeURIComponent(question)}`);
+            return response.data;
+        } catch (error) {
+            throw handleApiError(error);
         }
     },
 
-    // Add utility functions for consistency
-    handleError: handleApiError
+    expandQuestion: async (question: string): Promise<string[]> => {
+        try {
+            const response = await api.get(`/api/research/expand-question?question=${encodeURIComponent(question)}`);
+            return response.data;
+        } catch (error) {
+            throw handleApiError(error);
+        }
+    },
+
+
 } 
