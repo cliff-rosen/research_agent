@@ -16,6 +16,7 @@ export interface URLContent {
     title: string;
     text: string;
     error?: string;
+    content_type: 'html' | 'markdown' | 'code' | 'text';
 }
 
 export const searchApi = {

@@ -10,6 +10,15 @@ import certifi
 from bs4 import BeautifulSoup
 import trafilatura
 import asyncio
+import json
+import re
+import markdown
+from pygments import highlight
+from pygments.formatters import HtmlFormatter
+from pygments.lexers import get_lexer_by_name, guess_lexer
+from pygments.util import ClassNotFound
+import mimetypes
+import chardet
 
 NUM_RESULTS = settings.GOOGLE_SEARCH_NUM_RESULTS
 
@@ -170,6 +179,67 @@ async def score_and_rank_results(query: str, results: List[SearchResult]) -> Lis
         return results
 
 
+def detect_content_type(text: str, url: str) -> str:
+    """
+    Detect the content type of the text based on content patterns.
+    """
+    # First check for HTML content (most common case for web content)
+    if '<html' in text.lower() or '<body' in text.lower() or '<div' in text.lower() or '<p>' in text.lower():
+        return 'html'
+
+    # Then check for markdown patterns
+    if text.startswith('#') or '```' in text or re.search(r'\[.*\]\(.*\)', text):
+        return 'markdown'
+
+    # Check for code patterns
+    if re.search(r'(function|class|import|export|const|let|var)\s+\w+', text):
+        return 'code'
+
+    # Default to HTML for web content
+    if url.startswith(('http://', 'https://')):
+        return 'html'
+
+    return 'text'
+
+
+def format_code(code: str, language: Optional[str] = None) -> str:
+    """
+    Format code with syntax highlighting.
+    """
+    try:
+        if language:
+            lexer = get_lexer_by_name(language)
+        else:
+            lexer = guess_lexer(code)
+
+        formatter = HtmlFormatter(style='monokai', cssclass='source-code')
+        return highlight(code, lexer, formatter)
+    except ClassNotFound:
+        return code
+
+
+def format_content(text: str, content_type: str) -> str:
+    """
+    Format content based on its type.
+    """
+    if content_type == 'html':
+        # Clean and format HTML
+        soup = BeautifulSoup(text, 'html.parser')
+        # Remove script and style elements
+        for element in soup(['script', 'style', 'meta', 'link']):
+            element.decompose()
+        return str(soup)
+    elif content_type == 'markdown':
+        # Convert markdown to HTML
+        return markdown.markdown(text, extensions=['fenced_code', 'tables'])
+    elif content_type == 'code':
+        # Apply syntax highlighting
+        return format_code(text)
+    else:
+        # Plain text - wrap in markdown code block for proper formatting
+        return f"```\n{text}\n```"
+
+
 async def fetch_url_content(url: str) -> URLContent:
     """
     Fetch and extract clean content from a URL.
@@ -183,24 +253,33 @@ async def fetch_url_content(url: str) -> URLContent:
         - title: Page title
         - text: Main content text
         - error: Error message if failed
+        - content_type: Detected content type
     """
     try:
         ssl_context = ssl.create_default_context(cafile=certifi.where())
         async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl_context)) as session:
             async with session.get(url, timeout=10) as response:
                 response.raise_for_status()
-                html = await response.text()
+
+                # Detect content encoding
+                content_bytes = await response.read()
+                detected = chardet.detect(content_bytes)
+                encoding = detected['encoding'] or 'utf-8'
+
+                try:
+                    html = content_bytes.decode(encoding)
+                except UnicodeDecodeError:
+                    html = content_bytes.decode('utf-8', errors='ignore')
 
                 # Extract content and metadata using trafilatura
                 extracted = trafilatura.extract(html,
-                                                include_tables=False,
+                                                include_tables=True,
                                                 include_images=False,
-                                                include_links=False,
+                                                include_links=True,
                                                 output_format='json',
                                                 with_metadata=True)
 
                 if extracted:
-                    import json
                     data = json.loads(extracted)
                     title = data.get('title', '')
                     content = data.get('text', '')
@@ -210,13 +289,18 @@ async def fetch_url_content(url: str) -> URLContent:
                     # Remove script and style elements
                     for script in soup(["script", "style"]):
                         script.decompose()
-                    content = soup.get_text(separator=' ', strip=True)
+                    content = soup.get_text(separator='\n', strip=True)
                     title = soup.title.string if soup.title else ''
+
+                # Detect and format content
+                content_type = detect_content_type(content, url)
+                formatted_content = format_content(content, content_type)
 
                 return URLContent(
                     url=url,
                     title=title,
-                    text=content or '',
+                    text=formatted_content,
+                    content_type=content_type,
                     error=''
                 )
 
@@ -226,6 +310,7 @@ async def fetch_url_content(url: str) -> URLContent:
             url=url,
             title='',
             text='',
+            content_type='text',
             error=str(e)
         )
 
@@ -256,6 +341,7 @@ async def fetch_urls_content(urls: List[str]) -> List[URLContent]:
                     url=url,
                     title="",
                     text="",
+                    content_type="text",
                     error=str(result)
                 ))
             else:

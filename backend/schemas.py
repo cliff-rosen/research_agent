@@ -75,6 +75,7 @@ class URLContent(BaseModel):
     title: str
     text: str
     error: str = ""
+    content_type: str = 'text'  # One of: 'html', 'markdown', 'code', 'text'
 
 
 ##### RESEARCH SCHEMA #####
