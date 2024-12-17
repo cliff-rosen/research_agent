@@ -5,7 +5,6 @@ from config.settings import settings
 from services.ai_service import ai_service
 from services.search_service import google_search, score_and_rank_results
 from schemas import SearchResult, QuestionAnalysis
-from fastapi.responses import StreamingResponse
 import json
 import asyncio
 
@@ -15,6 +14,135 @@ logger = logging.getLogger(__name__)
 class ResearchService:
     def __init__(self):
         self.search_wrapper = None
+
+    async def analyze_question_scope_stream(self, question: str):
+        """
+        Stream the question analysis process.
+        """
+        try:
+            logger.info(f"Analyzing question (streaming): {question}")
+
+            async for chunk in ai_service.analyze_question_scope_stream(question):
+                # Stream the markdown text directly
+                yield chunk
+
+        except Exception as e:
+            logger.error(f"Error in streaming analysis: {str(e)}")
+            yield "Error analyzing question. Please try again.\n"
+
+    async def expand_question_stream(self, question: str):
+        """
+        Stream the question expansion process with detailed analysis and explanation.
+
+        Args:
+            question (str): The question to expand
+
+        Yields:
+            str: Markdown-formatted chunks of the expansion process
+        """
+        try:
+            logger.info(f"Expanding question (streaming): {question}")
+
+            async for chunk in ai_service.expand_query_stream(question):
+                yield chunk
+
+        except Exception as e:
+            logger.error(f"Error in streaming expansion: {str(e)}")
+            yield "Error expanding question. Please try again.\n"
+
+    async def _search_with_query(self, query: str) -> Dict:
+        """
+        Wrapper around google_search that returns both results and original query.
+
+        Args:
+            query (str): The search query to execute
+
+        Returns:
+            Dict: Contains 'results' from google_search and original 'query'
+        """
+        try:
+            results = await google_search(query)
+            return {
+                'query': query,
+                'results': results
+            }
+        except Exception as e:
+            logger.error(
+                f"Error in search wrapper for query '{query}': {str(e)}")
+            return {
+                'query': query,
+                'results': [],
+                'error': str(e)
+            }
+
+    async def execute_queries_stream(self, queries: List[str]):
+        """
+        Stream the search results for multiple queries.
+        Results are streamed as JSON chunks in the same format as execute_queries.
+        Each result is scored using the query that originally found it.
+
+        Args:
+            queries (List[str]): List of search queries to execute
+
+        Yields:
+            str: JSON chunks containing search results
+        """
+        try:
+            logger.info(f"Executing {len(queries)} queries")
+
+            # Track unique results and their source queries
+            seen_urls = {}  # url -> (result_dict, source_query)
+            pending_results = []  # List to collect results before scoring
+
+            # Create tasks for parallel execution
+            tasks = [asyncio.create_task(
+                self._search_with_query(query)) for query in queries]
+
+            # Execute queries concurrently
+            for completed in asyncio.as_completed(tasks):
+                try:
+                    search_result = await completed
+                    source_query = search_result['query']
+                    results = search_result['results']
+
+                    # Track new unique results with their source query
+                    for result in results:
+                        if result["link"] not in seen_urls:
+                            seen_urls[result["link"]] = (result, source_query)
+                            search_result = SearchResult(
+                                title=result["title"],
+                                link=result["link"],
+                                snippet=result["snippet"],
+                                displayLink=result["displayLink"],
+                                pagemap=result["pagemap"],
+                                relevance_score=0.0
+                            )
+                            pending_results.append(search_result)
+
+                    # Score and stream this batch of results
+                    if pending_results:
+                        # Score all results from this query
+                        scored_results = await score_and_rank_results(source_query, pending_results)
+                        scored_results.sort(
+                            key=lambda x: x.relevance_score, reverse=True)
+
+                        # Stream results as JSON
+                        results_json = [result.dict()
+                                        for result in scored_results]
+                        yield json.dumps(results_json) + "\n"
+
+                        # Clear pending results
+                        pending_results = []
+
+                except Exception as e:
+                    logger.error(f"Error processing search results: {str(e)}")
+                    continue
+
+        except Exception as e:
+            logger.error(f"Error in streaming execution: {str(e)}")
+            yield json.dumps({"error": str(e)}) + "\n"
+
+    # DEPRECATED
 
     async def execute_queries(self, db: Session, queries: List[str], user_id: int) -> List[SearchResult]:
         """
@@ -136,41 +264,6 @@ class ResearchService:
         except Exception as e:
             logger.error(f"Error expanding question: {str(e)}")
             return []
-
-    async def expand_question_stream(self, question: str):
-        """
-        Stream the question expansion process with detailed analysis and explanation.
-        
-        Args:
-            question (str): The question to expand
-            
-        Yields:
-            str: Markdown-formatted chunks of the expansion process
-        """
-        try:
-            logger.info(f"Expanding question (streaming): {question}")
-            
-            async for chunk in ai_service.expand_query_stream(question):
-                yield chunk
-
-        except Exception as e:
-            logger.error(f"Error in streaming expansion: {str(e)}")
-            yield "Error expanding question. Please try again.\n"
-
-    async def analyze_question_scope_stream(self, question: str):
-        """
-        Stream the question analysis process.
-        """
-        try:
-            logger.info(f"Analyzing question (streaming): {question}")
-            
-            async for chunk in ai_service.analyze_question_scope_stream(question):
-                # Stream the markdown text directly
-                yield chunk
-
-        except Exception as e:
-            logger.error(f"Error in streaming analysis: {str(e)}")
-            yield "Error analyzing question. Please try again.\n"
 
 
 # Create a singleton instance

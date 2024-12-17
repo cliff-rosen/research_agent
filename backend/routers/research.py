@@ -15,6 +15,85 @@ router = APIRouter()
 
 
 @router.get(
+    "/analyze-question/stream",
+    summary="Stream the question analysis process",
+    responses={
+        200: {
+            "description": "Question analysis streamed successfully",
+            "content": {
+                "application/x-ndjson": {
+                    "example": {
+                        "type": "key_components",
+                        "data": ["component1", "component2"]
+                    }
+                }
+            }
+        },
+        401: {"description": "Not authenticated"}
+    }
+)
+async def analyze_question_stream(
+    question: str = Query(
+        description="The question to analyze for scope and components"
+    ),
+    current_user=Depends(auth_service.validate_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Stream the question analysis process, returning components as they are generated.
+
+    Parameters:
+    - **question**: The input question to analyze
+
+    Returns a stream of JSON objects, each containing:
+    - **type**: The type of data being returned (key_components, scope_boundaries, etc.)
+    - **data**: The actual data for that component
+    """
+    logger.info(
+        f"analyze_question_stream endpoint called with question: {question}")
+
+    return StreamingResponse(
+        research_service.analyze_question_scope_stream(question),
+        media_type="application/x-ndjson"
+    )
+
+
+@router.get("/expand-question/stream")
+async def expand_question_stream(
+    question: str = Query(..., description="The question to expand"),
+    db: Session = Depends(get_db),
+    current_user=Depends(auth_service.validate_token),
+):
+    """
+    Stream the question expansion process, returning markdown-formatted results.
+    """
+    return StreamingResponse(
+        research_service.expand_question_stream(question),
+        media_type="text/event-stream"
+    )
+
+
+@router.post("/execute-queries/stream")
+async def execute_queries_stream(
+    request: ExecuteQueriesRequest,
+    current_user=Depends(auth_service.validate_token),
+    db: Session = Depends(get_db)
+):
+    """Stream search results for multiple queries."""
+    # Limit to first 3 queries to prevent abuse
+    queries = request.queries[:3]
+    logger.info(
+        f"execute_queries_stream endpoint called with {len(queries)} queries (limited to first 3)")
+
+    return StreamingResponse(
+        research_service.execute_queries_stream(queries),
+        media_type="text/event-stream"
+    )
+
+# DEPRECATED
+
+
+@router.get(
     "/analyze-question",
     response_model=QuestionAnalysis,
     summary="Analyze a question to identify key components and scope",
@@ -198,61 +277,3 @@ async def get_research_answer(
         source_content=request.source_content
     )
     return result
-
-
-@router.get(
-    "/analyze-question/stream",
-    summary="Stream the question analysis process",
-    responses={
-        200: {
-            "description": "Question analysis streamed successfully",
-            "content": {
-                "application/x-ndjson": {
-                    "example": {
-                        "type": "key_components",
-                        "data": ["component1", "component2"]
-                    }
-                }
-            }
-        },
-        401: {"description": "Not authenticated"}
-    }
-)
-async def analyze_question_stream(
-    question: str = Query(
-        description="The question to analyze for scope and components"
-    ),
-    current_user=Depends(auth_service.validate_token),
-    db: Session = Depends(get_db)
-):
-    """
-    Stream the question analysis process, returning components as they are generated.
-    
-    Parameters:
-    - **question**: The input question to analyze
-    
-    Returns a stream of JSON objects, each containing:
-    - **type**: The type of data being returned (key_components, scope_boundaries, etc.)
-    - **data**: The actual data for that component
-    """
-    logger.info(f"analyze_question_stream endpoint called with question: {question}")
-    
-    return StreamingResponse(
-        research_service.analyze_question_scope_stream(question),
-        media_type="application/x-ndjson"
-    )
-
-
-@router.get("/expand-question/stream")
-async def expand_question_stream(
-    question: str = Query(..., description="The question to expand"),
-    db: Session = Depends(get_db),
-    current_user=Depends(auth_service.validate_token),
-):
-    """
-    Stream the question expansion process, returning markdown-formatted results.
-    """
-    return StreamingResponse(
-        research_service.expand_question_stream(question),
-        media_type="text/event-stream"
-    )

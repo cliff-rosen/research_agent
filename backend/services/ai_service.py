@@ -180,11 +180,13 @@ class AIService:
                     key_components=analysis_dict.get('key_components', []),
                     scope_boundaries=analysis_dict.get('scope_boundaries', []),
                     success_criteria=analysis_dict.get('success_criteria', []),
-                    conflicting_viewpoints=analysis_dict.get('conflicting_viewpoints', [])
+                    conflicting_viewpoints=analysis_dict.get(
+                        'conflicting_viewpoints', [])
                 )
 
             except json.JSONDecodeError as e:
-                logger.error(f"Error parsing analysis JSON response: {str(e)}\nResponse: {content}")
+                logger.error(
+                    f"Error parsing analysis JSON response: {str(e)}\nResponse: {content}")
                 return QuestionAnalysis(
                     key_components=[],
                     scope_boundaries=[],
@@ -240,16 +242,16 @@ class AIService:
             
             Return only the list of search queries, one per line starting with "- ".
             """
-            
+
             response = await self.openai_client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_tokens=1000
             )
-            
+
             queries = response.choices[0].message.content.strip().split('\n')
             return [q.strip('- ').strip() for q in queries if q.strip().startswith('-')]
-            
+
         except Exception as e:
             logger.error(f"Error in expand_query: {str(e)}")
             return []
@@ -261,13 +263,13 @@ class AIService:
         try:
             # Generate the explanatory markdown
             messages = [{"role": "user", "content": f"Question: {question}"}]
-            
+
             async for chunk in self.provider.create_chat_completion_stream(
                 messages=messages,
                 system=EXPAND_QUESTION_PROMPT
             ):
                 yield chunk
-                    
+
         except Exception as e:
             logger.error(f"Error in expand_query_stream: {str(e)}")
             yield "Error: Failed to expand query. Please try again.\n"
@@ -330,7 +332,8 @@ class AIService:
                 if response_text.endswith(','):
                     response_text = response_text[:-1]
                 if '"sources_used": [' in response_text and not ']' in response_text.split('"sources_used": [')[1]:
-                    response_text = response_text.split('"sources_used": [')[0] + '"sources_used": []}'
+                    response_text = response_text.split('"sources_used": [')[
+                        0] + '"sources_used": []}'
 
                 import json
                 result = json.loads(response_text)
@@ -350,14 +353,16 @@ class AIService:
 
             # Validate required fields
             if not isinstance(result.get('answer'), str):
-                raise ValueError("Missing or invalid 'answer' field in response")
+                raise ValueError(
+                    "Missing or invalid 'answer' field in response")
 
             # Ensure sources is a list and contains valid URLs
             sources = result.get('sources_used', [])
             if not isinstance(sources, list):
                 sources = []
             # Filter out any truncated or invalid URLs
-            sources = [s for s in sources if isinstance(s, str) and s.startswith('http')]
+            sources = [s for s in sources if isinstance(
+                s, str) and s.startswith('http')]
 
             # Ensure confidence score is valid
             try:
@@ -384,10 +389,10 @@ class AIService:
             )
 
     async def get_research_answer_stream(self,
-                                       question: str,
-                                       source_content: List[URLContent],
-                                       model: Optional[str] = None
-                                       ) -> AsyncGenerator[str, None]:
+                                         question: str,
+                                         source_content: List[URLContent],
+                                         model: Optional[str] = None
+                                         ) -> AsyncGenerator[str, None]:
         """
         Stream a research answer from analyzed sources.
 
@@ -430,6 +435,130 @@ class AIService:
     async def close(self):
         """Cleanup method to close the provider session"""
         await self.provider.close()
+
+    async def score_results(self,
+                            query: str,
+                            results: List[Dict[str, str]],
+                            model: Optional[str] = None
+                            ) -> List[Dict[str, float]]:
+        """Score search results based on relevance to the query."""
+        try:
+            logger.info(f"Scoring {len(results)} results for query: {query}")
+            if model:
+                logger.info(f"Using specified model: {model}")
+
+            # Format results for the prompt
+            results_text = "\n\n".join([
+                f"URL: {result['url']}\n{result['content']}"
+                for result in results
+            ])
+            logger.debug(f"Formatted results for scoring:\n{results_text}")
+
+            prompt = f"{SCORE_RESULTS_PROMPT}\n\nQuery: {query}\n\nResults to score:\n{results_text}"
+            logger.debug(f"Full prompt:\n{prompt}")
+
+            # Get scores from AI
+            logger.info("Requesting scores from AI provider...")
+            response = await self.provider.generate(
+                prompt=prompt,
+                model=model,
+                max_tokens=1000
+            )
+            logger.debug(f"Raw AI response:\n{response}")
+
+            try:
+                # Clean the response string
+                response_text = response.strip()
+                if response_text.startswith('```json'):
+                    logger.debug(
+                        "Detected JSON code block, extracting content")
+                    response_text = response_text.split('```')[1].strip()
+                elif response_text.startswith('```'):
+                    logger.debug("Detected code block, extracting content")
+                    response_text = response_text.split('```')[1].strip()
+
+                logger.debug(f"Cleaned response text:\n{response_text}")
+
+                # Parse the JSON response
+                import json
+                scores = json.loads(response_text)
+                logger.debug(f"Parsed JSON scores: {scores}")
+
+                if not isinstance(scores, list):
+                    logger.error(
+                        f"AI response is not a list. Type: {type(scores)}")
+                    raise ValueError("Invalid response format")
+
+                # Validate and clean up scores
+                validated_scores = []
+                result_urls = {result['url'] for result in results}
+                logger.debug(f"Valid URLs: {result_urls}")
+
+                for score in scores:
+                    logger.debug(f"Processing score entry: {score}")
+                    if not isinstance(score, dict):
+                        logger.warning(
+                            f"Skipping non-dict score entry: {score}")
+                        continue
+
+                    if 'url' not in score or 'score' not in score:
+                        logger.warning(
+                            f"Skipping score entry missing required fields: {score}")
+                        continue
+
+                    if score['url'] not in result_urls:
+                        logger.warning(
+                            f"Skipping score for unknown URL: {score['url']}")
+                        continue
+
+                    try:
+                        # Ensure score is a number and within bounds
+                        original_score = score['score']
+                        score['score'] = max(
+                            0, min(100, float(score['score'])))
+                        if score['score'] != original_score:
+                            logger.info(
+                                f"Adjusted score for {score['url']} from {original_score} to {score['score']}")
+                        validated_scores.append(score)
+                        logger.debug(f"Validated score entry: {score}")
+                    except (TypeError, ValueError):
+                        logger.error(
+                            f"Invalid score value for URL {score['url']}: {score.get('score')}")
+                        continue
+
+                # Ensure we have scores for all results
+                if len(validated_scores) < len(results):
+                    logger.warning(
+                        f"Missing scores for some URLs. Found {len(validated_scores)} of {len(results)}")
+                    missing_urls = result_urls - \
+                        {score['url'] for score in validated_scores}
+                    for url in missing_urls:
+                        default_score = {'url': url, 'score': 50.0}
+                        validated_scores.append(default_score)
+                        logger.warning(
+                            f"Added default score for missing URL: {url}")
+
+                logger.info(
+                    f"Successfully scored {len(validated_scores)} results")
+                logger.debug(f"Final validated scores: {validated_scores}")
+                return validated_scores
+
+            except json.JSONDecodeError as e:
+                logger.error(
+                    f"Error parsing score results JSON: {str(e)}\nResponse: {response}")
+                default_scores = [{'url': result['url'],
+                                   'score': 50.0} for result in results]
+                logger.info(
+                    f"Returning default scores for {len(default_scores)} results")
+                return default_scores
+
+        except Exception as e:
+            logger.error(f"Error in score_results: {str(e)}", exc_info=True)
+            default_scores = [{'url': result['url'], 'score': 50.0}
+                              for result in results]
+            logger.info(
+                f"Returning default scores for {len(default_scores)} results")
+            return default_scores
 
 
 # Create a singleton instance
