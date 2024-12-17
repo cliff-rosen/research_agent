@@ -1,45 +1,29 @@
-import React, { useState } from 'react';
-import { QuestionAnalysisResponse } from '../lib/api/researchApi';
+import React from 'react';
 import ReactMarkdown from 'react-markdown';
 
 interface Props {
     question: string;
-    analysis: QuestionAnalysisResponse;
     expandedQueries: string[];
     expandedQueriesMarkdown: string;
     isLoading: boolean;
-    onSubmit: (queries: string[]) => void;
+    showAsList: boolean;
+    setShowAsList: (show: boolean) => void;
+    selectedQueries: Set<string>;
+    onQueryToggle: (query: string) => void;
+    onSelectAll: () => void;
 }
 
 const QuestionExpansion: React.FC<Props> = ({
     question,
-    analysis,
     expandedQueries,
     expandedQueriesMarkdown,
     isLoading,
-    onSubmit
+    showAsList,
+    setShowAsList,
+    selectedQueries,
+    onQueryToggle,
+    onSelectAll
 }) => {
-    const [showAsList, setShowAsList] = useState(false);
-    const [selectedQueries, setSelectedQueries] = useState<Set<string>>(new Set(expandedQueries));
-
-    const handleQueryToggle = (query: string) => {
-        const newSelected = new Set(selectedQueries);
-        if (newSelected.has(query)) {
-            newSelected.delete(query);
-        } else {
-            newSelected.add(query);
-        }
-        setSelectedQueries(newSelected);
-    };
-
-    const handleSelectAll = () => {
-        if (selectedQueries.size === expandedQueries.length) {
-            setSelectedQueries(new Set());
-        } else {
-            setSelectedQueries(new Set(expandedQueries));
-        }
-    };
-
     return (
         <div className="space-y-6 text-gray-900 dark:text-gray-100">
             <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
@@ -81,7 +65,7 @@ const QuestionExpansion: React.FC<Props> = ({
                     <div className="space-y-4">
                         <div className="flex justify-end">
                             <button
-                                onClick={handleSelectAll}
+                                onClick={onSelectAll}
                                 className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                             >
                                 {selectedQueries.size === expandedQueries.length ? 'Deselect All' : 'Select All'}
@@ -97,7 +81,7 @@ const QuestionExpansion: React.FC<Props> = ({
                                         type="checkbox"
                                         id={`query-${index}`}
                                         checked={selectedQueries.has(query)}
-                                        onChange={() => handleQueryToggle(query)}
+                                        onChange={() => onQueryToggle(query)}
                                         className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                                     />
                                     <label
@@ -111,22 +95,6 @@ const QuestionExpansion: React.FC<Props> = ({
                         </div>
                     </div>
                 )}
-            </div>
-
-            <div className="flex justify-end">
-                <button
-                    onClick={() => onSubmit(showAsList ? Array.from(selectedQueries) : expandedQueries)}
-                    disabled={isLoading || (showAsList ? selectedQueries.size === 0 : expandedQueries.length === 0)}
-                    className={`px-4 py-2 rounded-lg ${
-                        isLoading || (showAsList ? selectedQueries.size === 0 : expandedQueries.length === 0)
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
-                >
-                    {isLoading ? 'Loading...' : 
-                     showAsList ? `Search with Selected Queries (${selectedQueries.size})` :
-                     'Search with Generated Queries'}
-                </button>
             </div>
         </div>
     );

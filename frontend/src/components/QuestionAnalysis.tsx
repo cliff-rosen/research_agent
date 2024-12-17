@@ -10,10 +10,7 @@ interface Props {
 }
 
 const QuestionAnalysis: React.FC<Props> = ({
-    analysis,
-    analysisMarkdown,
-    isLoading,
-    onProceed
+    analysisMarkdown
 }) => {
     return (
         <div className="space-y-6 text-gray-900 dark:text-gray-100">
@@ -35,20 +32,6 @@ const QuestionAnalysis: React.FC<Props> = ({
                         {analysisMarkdown}
                     </ReactMarkdown>
                 </div>
-            </div>
-
-            <div className="flex justify-end">
-                <button
-                    onClick={onProceed}
-                    disabled={isLoading || !analysis}
-                    className={`px-4 py-2 rounded-lg ${
-                        isLoading || !analysis
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
-                >
-                    {isLoading ? 'Analyzing...' : 'Proceed to Query Expansion'}
-                </button>
             </div>
         </div>
     );

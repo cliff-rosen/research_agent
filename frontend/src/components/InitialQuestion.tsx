@@ -5,7 +5,6 @@ interface InitialQuestionProps {
     isLoading: boolean;
     error: string;
     onQuestionChange: (question: string) => void;
-    onSubmit: () => Promise<void>;
 }
 
 const InitialQuestion: React.FC<InitialQuestionProps> = ({
@@ -13,7 +12,6 @@ const InitialQuestion: React.FC<InitialQuestionProps> = ({
     isLoading,
     error,
     onQuestionChange,
-    onSubmit
 }) => {
     return (
         <div className="space-y-4">
@@ -29,17 +27,6 @@ const InitialQuestion: React.FC<InitialQuestionProps> = ({
             {error && (
                 <div className="text-red-500 text-sm">{error}</div>
             )}
-            <button
-                className={`px-4 py-2 rounded-lg text-white ${
-                    isLoading || !question.trim()
-                        ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-blue-600 hover:bg-blue-700'
-                }`}
-                onClick={onSubmit}
-                disabled={!question.trim() || isLoading}
-            >
-                {isLoading ? 'Processing...' : 'Analyze Question'}
-            </button>
         </div>
     );
 };

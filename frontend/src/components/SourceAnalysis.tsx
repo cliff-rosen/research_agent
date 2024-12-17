@@ -1,14 +1,9 @@
 import React, { useState } from 'react';
 import { URLContent } from '../lib/api/searchApi';
-import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import DOMPurify from 'dompurify';
 
 interface SourceAnalysisProps {
     sourceContent: URLContent[];
-    isLoading: boolean;
-    onProceed: () => void;
 }
 
 interface SourceViewModalProps {
@@ -19,10 +14,10 @@ interface SourceViewModalProps {
 
 const ContentRenderer: React.FC<{ content: URLContent }> = ({ content }) => {
     return (
-        <div 
+        <div
             className="text-gray-800 dark:text-gray-200 prose dark:prose-invert max-w-none prose-p:my-3 prose-p:leading-relaxed prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-a:text-blue-600 dark:prose-a:text-blue-400"
-            dangerouslySetInnerHTML={{ 
-                __html: DOMPurify.sanitize(content.text, { 
+            dangerouslySetInnerHTML={{
+                __html: DOMPurify.sanitize(content.text, {
                     USE_PROFILES: { html: true },
                     ALLOWED_TAGS: [
                         'p', 'a', 'b', 'i', 'em', 'strong', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -39,12 +34,12 @@ const PreviewContent: React.FC<{ content: URLContent }> = ({ content }) => {
     // Create a temporary div to parse the HTML
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = DOMPurify.sanitize(content.text);
-    
+
     // Get all paragraphs
     const paragraphs = tempDiv.getElementsByTagName('p');
     let previewHtml = '';
     let charCount = 0;
-    
+
     // Build preview HTML from paragraphs
     for (let i = 0; i < paragraphs.length; i++) {
         const paraText = paragraphs[i].textContent || '';
@@ -60,12 +55,12 @@ const PreviewContent: React.FC<{ content: URLContent }> = ({ content }) => {
         previewHtml += paragraphs[i].outerHTML;
         charCount += paraText.length;
     }
-    
+
     return (
-        <div 
+        <div
             className="text-gray-800 dark:text-gray-200 prose dark:prose-invert max-w-none prose-p:my-3 prose-p:leading-relaxed prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-a:text-blue-600 dark:prose-a:text-blue-400"
-            dangerouslySetInnerHTML={{ 
-                __html: DOMPurify.sanitize(previewHtml, { 
+            dangerouslySetInnerHTML={{
+                __html: DOMPurify.sanitize(previewHtml, {
                     USE_PROFILES: { html: true },
                     ALLOWED_TAGS: [
                         'p', 'a', 'b', 'i', 'em', 'strong', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -118,11 +113,11 @@ const SourceViewModal: React.FC<SourceViewModalProps> = ({ content, isOpen, onCl
                         </button>
                     </div>
                 </div>
-                
+
                 {/* Content */}
                 <div className="flex-1 overflow-auto p-4">
                     <div className="mb-4">
-                        <a 
+                        <a
                             href={content.url}
                             target="_blank"
                             rel="noopener noreferrer"
@@ -131,7 +126,7 @@ const SourceViewModal: React.FC<SourceViewModalProps> = ({ content, isOpen, onCl
                             {content.url}
                         </a>
                     </div>
-                    
+
                     {content.error ? (
                         <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
                             <div className="text-red-600 dark:text-red-400 font-medium mb-1">
@@ -154,13 +149,13 @@ const SourceViewModal: React.FC<SourceViewModalProps> = ({ content, isOpen, onCl
     );
 };
 
-const SourceAnalysis: React.FC<SourceAnalysisProps> = ({ sourceContent, isLoading, onProceed }) => {
+const SourceAnalysis: React.FC<SourceAnalysisProps> = ({ sourceContent }) => {
     const [expandedSources, setExpandedSources] = useState<number[]>([]);
     const [selectedSource, setSelectedSource] = useState<URLContent | null>(null);
 
     const toggleSource = (index: number) => {
-        setExpandedSources(prev => 
-            prev.includes(index) 
+        setExpandedSources(prev =>
+            prev.includes(index)
                 ? prev.filter(i => i !== index)
                 : [...prev, index]
         );
@@ -181,12 +176,12 @@ const SourceAnalysis: React.FC<SourceAnalysisProps> = ({ sourceContent, isLoadin
                 {sourceContent.map((content, index) => {
                     const isExpanded = expandedSources.includes(index);
                     return (
-                        <div 
-                            key={index} 
+                        <div
+                            key={index}
                             className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden"
                         >
                             {/* Header Section */}
-                            <div 
+                            <div
                                 className="p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700"
                                 onClick={() => toggleSource(index)}
                             >
@@ -196,7 +191,7 @@ const SourceAnalysis: React.FC<SourceAnalysisProps> = ({ sourceContent, isLoadin
                                             <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 truncate">
                                                 {content.title || 'Untitled Source'}
                                             </h3>
-                                            <button 
+                                            <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setSelectedSource(content);
@@ -210,14 +205,14 @@ const SourceAnalysis: React.FC<SourceAnalysisProps> = ({ sourceContent, isLoadin
                                             {content.url}
                                         </div>
                                     </div>
-                                    <button 
+                                    <button
                                         className="text-gray-500 dark:text-gray-400 flex-shrink-0"
                                         aria-label={isExpanded ? 'Collapse' : 'Expand'}
                                     >
-                                        <svg 
-                                            className={`w-5 h-5 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
-                                            fill="none" 
-                                            stroke="currentColor" 
+                                        <svg
+                                            className={`w-5 h-5 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                            fill="none"
+                                            stroke="currentColor"
                                             viewBox="0 0 24 24"
                                         >
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -274,15 +269,6 @@ const SourceAnalysis: React.FC<SourceAnalysisProps> = ({ sourceContent, isLoadin
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                     Click on a source to expand/collapse its content
                 </div>
-                <button
-                    className={`px-6 py-2 rounded-lg text-white ${
-                        isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                    }`}
-                    onClick={onProceed}
-                    disabled={isLoading}
-                >
-                    {isLoading ? 'Processing...' : 'Generate Final Answer'}
-                </button>
             </div>
 
             {/* Source View Modal */}
