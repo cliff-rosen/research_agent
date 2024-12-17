@@ -171,15 +171,58 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
     // Step 3: Execute the queries
     const handleSubmitQueries = async (queries: string[]): Promise<void> => {
         try {
-            setIsSearching(true);
-            const results = await researchApi.executeQueries(queries);
-            setSearchResults(results);
-            handleNext();
+            setIsLoading(true);
+            setSearchResults([]);
+            const expansionStream = researchApi.executeQueriesStream(queries);
+            let hasAdvanced = false;
+            let accumulatedContent = '';
+
+            for await (const update of expansionStream) {
+                if (!hasAdvanced) {
+                    hasAdvanced = true;
+                    handleNext();
+                }
+                
+                // Accumulate the content
+                accumulatedContent += update.data;
+
+                // Try to parse complete JSON objects
+                try {
+                    // Split by newlines in case we have multiple complete objects
+                    const lines = accumulatedContent.split('\n');
+                    
+                    // Process all complete lines except the last one (which might be incomplete)
+                    const completeLines = lines.slice(0, -1);
+                    
+                    for (const line of completeLines) {
+                        if (line.trim()) {
+                            const results = JSON.parse(line);
+                            setSearchResults(prev => [...prev, ...results]);
+                        }
+                    }
+                    
+                    // Keep the last potentially incomplete line for next iteration
+                    accumulatedContent = lines[lines.length - 1];
+                } catch (parseError) {
+                    // If parsing fails, keep accumulating content
+                    continue;
+                }
+            }
+
+            // Process any remaining content after stream ends
+            if (accumulatedContent.trim()) {
+                try {
+                    const results = JSON.parse(accumulatedContent);
+                    setSearchResults(prev => [...prev, ...results]);
+                } catch (parseError) {
+                    console.error('Error parsing final chunk:', parseError);
+                }
+            }
         } catch (err: unknown) {
             console.error('Error executing queries:', err);
             setError('Failed to execute search queries. Please try again.');
         } finally {
-            setIsSearching(false);
+            setIsLoading(false);
         }
     };
 
