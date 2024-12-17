@@ -25,6 +25,46 @@ NUM_RESULTS = settings.GOOGLE_SEARCH_NUM_RESULTS
 logger = logging.getLogger(__name__)
 
 
+async def search(db: Session, query: str, user_id: int = 0) -> List[SearchResult]:
+    """
+    Perform web search for the given query using Google Custom Search API
+    and score results using AI
+
+    Args:
+        db (Session): Database session
+        query (str): Search query
+        user_id (int): ID of the user performing the search
+
+    Returns:
+        List[SearchResult]: List of scored and sorted search results
+    """
+    logger.info(f"Performing web search for query: {query}")
+
+    try:
+        results = await google_search(query)
+
+        # Transform results to match our SearchResult schema
+        search_results = [
+            SearchResult(
+                title=result["title"],
+                link=result["link"],
+                snippet=result["snippet"],
+                displayLink=result["displayLink"],
+                pagemap=result["pagemap"],
+                relevance_score=0.0  # Initialize score
+            )
+            for result in results
+        ]
+
+        # Score and sort results
+        scored_results = await score_and_rank_results(query, search_results)
+        return scored_results
+
+    except Exception as e:
+        logger.error(f"Error performing Google search: {str(e)}")
+        return []
+
+
 async def google_search(query: str,
                         api_key: str = settings.GOOGLE_SEARCH_API_KEY,
                         cx: str = settings.GOOGLE_SEARCH_ENGINE_ID,
@@ -89,46 +129,6 @@ async def google_search(query: str,
         return []
     except Exception as e:
         logger.error(f"An error occurred during Google search: {str(e)}")
-        return []
-
-
-async def search(db: Session, query: str, user_id: int = 0) -> List[SearchResult]:
-    """
-    Perform web search for the given query using Google Custom Search API
-    and score results using AI
-
-    Args:
-        db (Session): Database session
-        query (str): Search query
-        user_id (int): ID of the user performing the search
-
-    Returns:
-        List[SearchResult]: List of scored and sorted search results
-    """
-    logger.info(f"Performing web search for query: {query}")
-
-    try:
-        results = await google_search(query)
-
-        # Transform results to match our SearchResult schema
-        search_results = [
-            SearchResult(
-                title=result["title"],
-                link=result["link"],
-                snippet=result["snippet"],
-                displayLink=result["displayLink"],
-                pagemap=result["pagemap"],
-                relevance_score=0.0  # Initialize score
-            )
-            for result in results
-        ]
-
-        # Score and sort results
-        scored_results = await score_and_rank_results(query, search_results)
-        return scored_results
-
-    except Exception as e:
-        logger.error(f"Error performing Google search: {str(e)}")
         return []
 
 
@@ -251,66 +251,171 @@ async def fetch_url_content(url: str) -> URLContent:
         URLContent: Pydantic model containing:
         - url: Original URL
         - title: Page title
-        - text: Main content text
+        - text: Main content text as HTML
         - error: Error message if failed
-        - content_type: Detected content type
+        - content_type: Always 'html'
     """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Cache-Control': 'max-age=0'
+    }
+
     try:
         ssl_context = ssl.create_default_context(cafile=certifi.where())
-        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl_context)) as session:
-            async with session.get(url, timeout=10) as response:
+        timeout = aiohttp.ClientTimeout(total=15)  # 15 seconds total timeout
+
+        async with aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(ssl=ssl_context),
+            timeout=timeout,
+            headers=headers
+        ) as session:
+            async with session.get(url) as response:
                 response.raise_for_status()
 
-                # Detect content encoding
-                content_bytes = await response.read()
-                detected = chardet.detect(content_bytes)
-                encoding = detected['encoding'] or 'utf-8'
+                # Handle PDF files
+                content_type = response.headers.get('Content-Type', '').lower()
+                if 'application/pdf' in content_type:
+                    return URLContent(
+                        url=url,
+                        title=url.split('/')[-1],
+                        text='<p>This is a PDF document. Please click the link above to view it.</p>',
+                        content_type='html',
+                        error=''
+                    )
 
                 try:
-                    html = content_bytes.decode(encoding)
+                    html = await response.text()
                 except UnicodeDecodeError:
-                    html = content_bytes.decode('utf-8', errors='ignore')
+                    # Try with different encoding if default fails
+                    raw_data = await response.read()
+                    detected = chardet.detect(raw_data)
+                    html = raw_data.decode(
+                        detected['encoding'] or 'utf-8', errors='ignore')
 
-                # Extract content and metadata using trafilatura
-                extracted = trafilatura.extract(html,
-                                                include_tables=True,
-                                                include_images=False,
-                                                include_links=True,
-                                                output_format='json',
-                                                with_metadata=True)
+                # First try trafilatura for content extraction
+                try:
+                    extracted = trafilatura.extract(
+                        html,
+                        include_tables=True,
+                        include_images=False,
+                        include_links=True,
+                        output_format='json',
+                        with_metadata=True,
+                        favor_precision=True
+                    )
 
-                if extracted:
-                    data = json.loads(extracted)
-                    title = data.get('title', '')
-                    content = data.get('text', '')
-                else:
-                    # Fallback to BeautifulSoup
-                    soup = BeautifulSoup(html, 'html.parser')
-                    # Remove script and style elements
-                    for script in soup(["script", "style"]):
-                        script.decompose()
-                    content = soup.get_text(separator='\n', strip=True)
-                    title = soup.title.string if soup.title else ''
+                    if extracted:
+                        data = json.loads(extracted)
+                        title = data.get('title', '')
+                        text = data.get('text', '')
 
-                # Detect and format content
-                content_type = detect_content_type(content, url)
-                formatted_content = format_content(content, content_type)
+                        # Convert plain text to HTML paragraphs
+                        if text:
+                            paragraphs = [p.strip()
+                                          for p in text.split('\n\n') if p.strip()]
+                            content = '\n'.join(
+                                [f'<p>{p}</p>' for p in paragraphs])
+                        else:
+                            content = '<p>No content could be extracted from this page.</p>'
+                    else:
+                        # Fallback to BeautifulSoup
+                        soup = BeautifulSoup(html, 'html.parser')
 
-                return URLContent(
-                    url=url,
-                    title=title,
-                    text=formatted_content,
-                    content_type=content_type,
-                    error=''
-                )
+                        # Get title - try meta title first, then regular title
+                        title = ''
+                        meta_title = soup.find('meta', property='og:title')
+                        if meta_title:
+                            title = meta_title.get('content', '')
+                        if not title:
+                            title_tag = soup.find('title')
+                            if title_tag:
+                                title = title_tag.string
 
+                        # Remove unwanted elements
+                        for tag in soup(['script', 'style', 'meta', 'link', 'header', 'footer', 'nav']):
+                            tag.decompose()
+
+                        # Try to find main content area
+                        main_content = (
+                            soup.find('main') or
+                            soup.find('article') or
+                            soup.find(['div', 'section'], class_=lambda x: x and any(
+                                c in str(x).lower() for c in ['content', 'main', 'article', 'post', 'entry']))
+                        )
+
+                        if main_content:
+                            # Clean up the content
+                            content = str(main_content)
+                        else:
+                            # If no main content found, get all paragraphs
+                            paragraphs = []
+                            for p in soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+                                text = p.get_text().strip()
+                                if text:
+                                    paragraphs.append(str(p))
+                            content = '\n'.join(
+                                paragraphs) if paragraphs else '<p>No content could be extracted from this page.</p>'
+
+                    # If no title found, use the URL's domain
+                    if not title:
+                        from urllib.parse import urlparse
+                        domain = urlparse(url).netloc
+                        title = domain.replace('www.', '').capitalize()
+
+                    return URLContent(
+                        url=url,
+                        title=title,
+                        text=content,
+                        content_type='html',
+                        error=''
+                    )
+
+                except Exception as e:
+                    logger.error(
+                        f"Error extracting content from {url}: {str(e)}")
+                    return URLContent(
+                        url=url,
+                        title=url,
+                        text='<p>Error extracting content from this page.</p>',
+                        content_type='html',
+                        error=str(e)
+                    )
+
+    except aiohttp.ClientError as e:
+        error_msg = str(e)
+        if isinstance(e, aiohttp.ClientResponseError):
+            if e.status == 403:
+                error_msg = "Access to this page is forbidden. The website may block automated access."
+            elif e.status == 404:
+                error_msg = "The page could not be found."
+            elif e.status == 429:
+                error_msg = "Too many requests. The website has temporarily blocked access."
+
+        logger.error(f"Error fetching URL {url}: {error_msg}")
+        return URLContent(
+            url=url,
+            title=url,
+            text=f'<p>Error: {error_msg}</p>',
+            content_type='html',
+            error=error_msg
+        )
     except Exception as e:
         logger.error(f"Error fetching URL {url}: {str(e)}")
         return URLContent(
             url=url,
-            title='',
-            text='',
-            content_type='text',
+            title=url,
+            text='<p>An error occurred while fetching this content.</p>',
+            content_type='html',
             error=str(e)
         )
 

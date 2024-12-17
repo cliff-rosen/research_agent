@@ -18,117 +18,64 @@ interface SourceViewModalProps {
 }
 
 const ContentRenderer: React.FC<{ content: URLContent }> = ({ content }) => {
-    switch (content.content_type) {
-        case 'html':
-            return (
-                <div 
-                    className="text-gray-800 dark:text-gray-200 prose dark:prose-invert prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-a:text-blue-600 dark:prose-a:text-blue-400 max-w-none"
-                    dangerouslySetInnerHTML={{ 
-                        __html: DOMPurify.sanitize(content.text, { 
-                            USE_PROFILES: { html: true },
-                            ALLOWED_TAGS: [
-                                'p', 'a', 'b', 'i', 'em', 'strong', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                                'ul', 'ol', 'li', 'br', 'hr', 'div', 'span', 'table', 'tr', 'td', 'th',
-                                'thead', 'tbody', 'img', 'blockquote', 'pre', 'code'
-                            ],
-                            ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'src', 'alt', 'title', 'style'],
-                            ADD_TAGS: ['iframe'],
-                            ADD_ATTR: ['frameborder', 'allowfullscreen']
-                        })
-                    }}
-                />
-            );
-        
-        case 'code':
-            return (
-                <SyntaxHighlighter
-                    style={oneDark}
-                    language="typescript"
-                    customStyle={{
-                        margin: '1em 0',
-                        borderRadius: '0.375rem'
-                    }}
-                >
-                    {content.text}
-                </SyntaxHighlighter>
-            );
-        
-        case 'markdown':
-            return (
-                <ReactMarkdown
-                    components={{
-                        code({ inline, className, children, ...props }) {
-                            const match = /language-(\w+)/.exec(className || '');
-                            return !inline && match ? (
-                                <SyntaxHighlighter
-                                    {...props}
-                                    style={oneDark}
-                                    language={match[1]}
-                                    PreTag="div"
-                                    customStyle={{
-                                        margin: '1em 0',
-                                        borderRadius: '0.375rem'
-                                    }}
-                                >
-                                    {String(children).replace(/\n$/, '')}
-                                </SyntaxHighlighter>
-                            ) : (
-                                <code className={className} {...props}>
-                                    {children}
-                                </code>
-                            );
-                        }
-                    }}
-                    className="text-gray-800 dark:text-gray-200"
-                >
-                    {content.text}
-                </ReactMarkdown>
-            );
-        
-        default:
-            return (
-                <pre className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                    {content.text}
-                </pre>
-            );
-    }
+    return (
+        <div 
+            className="text-gray-800 dark:text-gray-200 prose dark:prose-invert max-w-none prose-p:my-3 prose-p:leading-relaxed prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-a:text-blue-600 dark:prose-a:text-blue-400"
+            dangerouslySetInnerHTML={{ 
+                __html: DOMPurify.sanitize(content.text, { 
+                    USE_PROFILES: { html: true },
+                    ALLOWED_TAGS: [
+                        'p', 'a', 'b', 'i', 'em', 'strong', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                        'ul', 'ol', 'li', 'br', 'hr', 'div', 'span', 'blockquote'
+                    ],
+                    ALLOWED_ATTR: ['href', 'target', 'rel', 'class']
+                })
+            }}
+        />
+    );
 };
 
 const PreviewContent: React.FC<{ content: URLContent }> = ({ content }) => {
-    const previewText = content.text.slice(0, 500);
+    // Create a temporary div to parse the HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = DOMPurify.sanitize(content.text);
     
-    switch (content.content_type) {
-        case 'html':
-            return (
-                <div 
-                    className="text-gray-800 dark:text-gray-200 prose dark:prose-invert prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-a:text-blue-600 dark:prose-a:text-blue-400 max-w-none"
-                    dangerouslySetInnerHTML={{ 
-                        __html: DOMPurify.sanitize(previewText, { 
-                            USE_PROFILES: { html: true },
-                            ALLOWED_TAGS: [
-                                'p', 'a', 'b', 'i', 'em', 'strong', 'br', 'div', 'span',
-                                'h1', 'h2', 'h3', 'h4', 'h5', 'h6'
-                            ],
-                            ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'style']
-                        })
-                    }}
-                />
-            );
-        
-        case 'code':
-            return (
-                <pre className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                    {previewText}
-                </pre>
-            );
-        
-        default:
-            return (
-                <div className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                    {previewText}
-                </div>
-            );
+    // Get all paragraphs
+    const paragraphs = tempDiv.getElementsByTagName('p');
+    let previewHtml = '';
+    let charCount = 0;
+    
+    // Build preview HTML from paragraphs
+    for (let i = 0; i < paragraphs.length; i++) {
+        const paraText = paragraphs[i].textContent || '';
+        if (charCount + paraText.length > 500) {
+            if (charCount < 400) {
+                // Add partial paragraph with ellipsis
+                const remainingChars = 500 - charCount;
+                const partialText = paraText.slice(0, remainingChars);
+                previewHtml += `<p>${partialText}...</p>`;
+            }
+            break;
+        }
+        previewHtml += paragraphs[i].outerHTML;
+        charCount += paraText.length;
     }
+    
+    return (
+        <div 
+            className="text-gray-800 dark:text-gray-200 prose dark:prose-invert max-w-none prose-p:my-3 prose-p:leading-relaxed prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-a:text-blue-600 dark:prose-a:text-blue-400"
+            dangerouslySetInnerHTML={{ 
+                __html: DOMPurify.sanitize(previewHtml, { 
+                    USE_PROFILES: { html: true },
+                    ALLOWED_TAGS: [
+                        'p', 'a', 'b', 'i', 'em', 'strong', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                        'br', 'span'
+                    ],
+                    ALLOWED_ATTR: ['href', 'target', 'rel', 'class']
+                })
+            }}
+        />
+    );
 };
 
 const SourceViewModal: React.FC<SourceViewModalProps> = ({ content, isOpen, onClose }) => {
