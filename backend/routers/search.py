@@ -5,8 +5,6 @@ from database import get_db
 from schemas import SearchResult, URLContent, FetchURLsRequest
 from services import auth_service, search_service
 import logging
-from pydantic import BaseModel
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +42,8 @@ async def fetch_urls(request: FetchURLsRequest) -> List[URLContent]:
             detail=str(e)
         )
 
-### unused ###
 
+### Unused
 
 @router.get(
     "/search",

@@ -8,18 +8,10 @@ from services.ai_service import ai_service
 import ssl
 import certifi
 from bs4 import BeautifulSoup
-import trafilatura
 import asyncio
-import json
-import re
-import markdown
-from pygments import highlight
-from pygments.formatters import HtmlFormatter
-from pygments.lexers import get_lexer_by_name, guess_lexer
-from pygments.util import ClassNotFound
-import mimetypes
-import chardet
-
+import bleach
+import httpx
+from fastapi import HTTPException
 NUM_RESULTS = settings.GOOGLE_SEARCH_NUM_RESULTS
 
 logger = logging.getLogger(__name__)
@@ -179,245 +171,58 @@ async def score_and_rank_results(query: str, results: List[SearchResult]) -> Lis
         return results
 
 
-def detect_content_type(text: str, url: str) -> str:
-    """
-    Detect the content type of the text based on content patterns.
-    """
-    # First check for HTML content (most common case for web content)
-    if '<html' in text.lower() or '<body' in text.lower() or '<div' in text.lower() or '<p>' in text.lower():
-        return 'html'
-
-    # Then check for markdown patterns
-    if text.startswith('#') or '```' in text or re.search(r'\[.*\]\(.*\)', text):
-        return 'markdown'
-
-    # Check for code patterns
-    if re.search(r'(function|class|import|export|const|let|var)\s+\w+', text):
-        return 'code'
-
-    # Default to HTML for web content
-    if url.startswith(('http://', 'https://')):
-        return 'html'
-
-    return 'text'
-
-
-def format_code(code: str, language: Optional[str] = None) -> str:
-    """
-    Format code with syntax highlighting.
-    """
-    try:
-        if language:
-            lexer = get_lexer_by_name(language)
-        else:
-            lexer = guess_lexer(code)
-
-        formatter = HtmlFormatter(style='monokai', cssclass='source-code')
-        return highlight(code, lexer, formatter)
-    except ClassNotFound:
-        return code
-
-
-def format_content(text: str, content_type: str) -> str:
-    """
-    Format content based on its type.
-    """
-    if content_type == 'html':
-        # Clean and format HTML
-        soup = BeautifulSoup(text, 'html.parser')
-        # Remove script and style elements
-        for element in soup(['script', 'style', 'meta', 'link']):
-            element.decompose()
-        return str(soup)
-    elif content_type == 'markdown':
-        # Convert markdown to HTML
-        return markdown.markdown(text, extensions=['fenced_code', 'tables'])
-    elif content_type == 'code':
-        # Apply syntax highlighting
-        return format_code(text)
-    else:
-        # Plain text - wrap in markdown code block for proper formatting
-        return f"```\n{text}\n```"
-
-
 async def fetch_url_content(url: str) -> URLContent:
-    """
-    Fetch and extract clean content from a URL.
 
-    Args:
-        url (str): The URL to fetch content from
+    # Configure allowed HTML tags and attributes
+    ALLOWED_TAGS = [
+        'p', 'br', 'b', 'i', 'u', 'em', 'strong', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'table', 'thead', 'tbody', 'tr', 'td', 'th',
+        'ul', 'ol', 'li', 'blockquote', 'pre', 'code', 'hr', 'div', 'span', 'img'
+    ]
 
-    Returns:
-        URLContent: Pydantic model containing:
-        - url: Original URL
-        - title: Page title
-        - text: Main content text as HTML
-        - error: Error message if failed
-        - content_type: Always 'html'
-    """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Cache-Control': 'max-age=0'
-    }
+    ALLOWED_ATTRIBUTES = {
+        '*': ['class'],
+        'a': ['href', 'title'],
+        'img': ['src', 'alt', 'title', 'width', 'height'],
+    }       
 
     try:
-        ssl_context = ssl.create_default_context(cafile=certifi.where())
-        timeout = aiohttp.ClientTimeout(total=15)  # 15 seconds total timeout
+        async with httpx.AsyncClient() as client:
+            response = await client.get(str(url), follow_redirects=True)
+            response.raise_for_status()
+            
+        # Parse the HTML content
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Extract title
+        title = soup.title.string if soup.title else "No title found"
+        
+        # Clean up the content
+        # Remove script and style elements
+        for script in soup(["script", "style", "iframe", "noscript"]):
+            script.decompose()
 
-        async with aiohttp.ClientSession(
-            connector=aiohttp.TCPConnector(ssl=ssl_context),
-            timeout=timeout,
-            headers=headers
-        ) as session:
-            async with session.get(url) as response:
-                response.raise_for_status()
-
-                # Handle PDF files
-                content_type = response.headers.get('Content-Type', '').lower()
-                if 'application/pdf' in content_type:
-                    return URLContent(
-                        url=url,
-                        title=url.split('/')[-1],
-                        text='<p>This is a PDF document. Please click the link above to view it.</p>',
-                        content_type='html',
-                        error=''
-                    )
-
-                try:
-                    html = await response.text()
-                except UnicodeDecodeError:
-                    # Try with different encoding if default fails
-                    raw_data = await response.read()
-                    detected = chardet.detect(raw_data)
-                    html = raw_data.decode(
-                        detected['encoding'] or 'utf-8', errors='ignore')
-
-                # First try trafilatura for content extraction
-                try:
-                    extracted = trafilatura.extract(
-                        html,
-                        include_tables=True,
-                        include_images=False,
-                        include_links=True,
-                        output_format='json',
-                        with_metadata=True,
-                        favor_precision=True
-                    )
-
-                    if extracted:
-                        data = json.loads(extracted)
-                        title = data.get('title', '')
-                        text = data.get('text', '')
-
-                        # Convert plain text to HTML paragraphs
-                        if text:
-                            paragraphs = [p.strip()
-                                          for p in text.split('\n\n') if p.strip()]
-                            content = '\n'.join(
-                                [f'<p>{p}</p>' for p in paragraphs])
-                        else:
-                            content = '<p>No content could be extracted from this page.</p>'
-                    else:
-                        # Fallback to BeautifulSoup
-                        soup = BeautifulSoup(html, 'html.parser')
-
-                        # Get title - try meta title first, then regular title
-                        title = ''
-                        meta_title = soup.find('meta', property='og:title')
-                        if meta_title:
-                            title = meta_title.get('content', '')
-                        if not title:
-                            title_tag = soup.find('title')
-                            if title_tag:
-                                title = title_tag.string
-
-                        # Remove unwanted elements
-                        for tag in soup(['script', 'style', 'meta', 'link', 'header', 'footer', 'nav']):
-                            tag.decompose()
-
-                        # Try to find main content area
-                        main_content = (
-                            soup.find('main') or
-                            soup.find('article') or
-                            soup.find(['div', 'section'], class_=lambda x: x and any(
-                                c in str(x).lower() for c in ['content', 'main', 'article', 'post', 'entry']))
-                        )
-
-                        if main_content:
-                            # Clean up the content
-                            content = str(main_content)
-                        else:
-                            # If no main content found, get all paragraphs
-                            paragraphs = []
-                            for p in soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
-                                text = p.get_text().strip()
-                                if text:
-                                    paragraphs.append(str(p))
-                            content = '\n'.join(
-                                paragraphs) if paragraphs else '<p>No content could be extracted from this page.</p>'
-
-                    # If no title found, use the URL's domain
-                    if not title:
-                        from urllib.parse import urlparse
-                        domain = urlparse(url).netloc
-                        title = domain.replace('www.', '').capitalize()
-
-                    return URLContent(
-                        url=url,
-                        title=title,
-                        text=content,
-                        content_type='html',
-                        error=''
-                    )
-
-                except Exception as e:
-                    logger.error(
-                        f"Error extracting content from {url}: {str(e)}")
-                    return URLContent(
-                        url=url,
-                        title=url,
-                        text='<p>Error extracting content from this page.</p>',
-                        content_type='html',
-                        error=str(e)
-                    )
-
-    except aiohttp.ClientError as e:
-        error_msg = str(e)
-        if isinstance(e, aiohttp.ClientResponseError):
-            if e.status == 403:
-                error_msg = "Access to this page is forbidden. The website may block automated access."
-            elif e.status == 404:
-                error_msg = "The page could not be found."
-            elif e.status == 429:
-                error_msg = "Too many requests. The website has temporarily blocked access."
-
-        logger.error(f"Error fetching URL {url}: {error_msg}")
-        return URLContent(
+        # Find the main content area (this is a simple heuristic - might need adjustment)
+        main_content = soup.find('main') or soup.find('article') or soup.find('body')
+       
+        # Sanitize the HTML content
+        cleaned_html = bleach.clean(
+            str(main_content),
+            tags=ALLOWED_TAGS,
+            attributes=ALLOWED_ATTRIBUTES,
+            strip=True
+        )            
+        return URLContent   (
             url=url,
-            title=url,
-            text=f'<p>Error: {error_msg}</p>',
-            content_type='html',
-            error=error_msg
+            title=title,
+            text=cleaned_html,
+            content_type='html'
         )
+        
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=400, detail=f"Error fetching URL: {str(e)}")
     except Exception as e:
-        logger.error(f"Error fetching URL {url}: {str(e)}")
-        return URLContent(
-            url=url,
-            title=url,
-            text='<p>An error occurred while fetching this content.</p>',
-            content_type='html',
-            error=str(e)
-        )
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")    
 
 
 async def fetch_urls_content(urls: List[str]) -> List[URLContent]:
