@@ -80,10 +80,9 @@ async def execute_queries_stream(
     db: Session = Depends(get_db)
 ):
     """Stream search results for multiple queries."""
-    # Limit to first 3 queries to prevent abuse
-    queries = request.queries[:3]
+    queries = request.queries
     logger.info(
-        f"execute_queries_stream endpoint called with {len(queries)} queries (limited to first 3)")
+        f"execute_queries_stream endpoint called with {len(queries)} queries")
 
     return StreamingResponse(
         research_service.execute_queries_stream(queries),
