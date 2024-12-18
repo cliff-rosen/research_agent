@@ -31,11 +31,23 @@ export const researchApi = {
         yield* makeStreamRequest('/api/research/execute-queries/stream', { queries });
     },
 
-   // Add utility functions for consistency
+    getResearchAnswer: async (question: string, sourceContent: URLContent[]): Promise<ResearchAnswer> => {
+        try {
+            const response = await api.post('/api/research/get-answer', {
+                question,
+                source_content: sourceContent
+            });
+            return response.data;
+        } catch (error) {
+            throw handleApiError(error);
+        }
+    },
+
+    // Add utility functions for consistency
     handleError: handleApiError,
 
     // DEPRECATED
-    
+
     analyzeQuestion: async (question: string): Promise<QuestionAnalysisResponse> => {
         try {
             const response = await api.get(`/api/research/analyze-question?question=${encodeURIComponent(question)}`);
@@ -57,18 +69,6 @@ export const researchApi = {
     executeQueries: async (queries: string[]): Promise<SearchResult[]> => {
         try {
             const response = await api.post('/api/research/execute-queries', { queries });
-            return response.data;
-        } catch (error) {
-            throw handleApiError(error);
-        }
-    },
-
-    getResearchAnswer: async (question: string, sourceContent: URLContent[]): Promise<ResearchAnswer> => {
-        try {
-            const response = await api.post('/api/research/get-answer', {
-                question,
-                source_content: sourceContent
-            });
             return response.data;
         } catch (error) {
             throw handleApiError(error);

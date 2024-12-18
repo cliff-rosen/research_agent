@@ -330,6 +330,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         setExpandedQueries([]);
         setSearchResults([]);
         setSelectedSources([]);
+        setSelectedSourcesSet(new Set());
         setSourceContent([]);
         setResearchAnswer(null);
     };
