@@ -2,14 +2,12 @@ import React from 'react';
 
 interface InitialQuestionProps {
     question: string;
-    isLoading: boolean;
     error: string;
     onQuestionChange: (question: string) => void;
 }
 
 const InitialQuestion: React.FC<InitialQuestionProps> = ({
     question,
-    isLoading,
     error,
     onQuestionChange,
 }) => {

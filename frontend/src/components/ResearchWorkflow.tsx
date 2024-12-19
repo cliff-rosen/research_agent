@@ -20,7 +20,7 @@ interface WorkflowStep {
 const ResearchWorkflow: React.FC = () => {
     const [activeStep, setActiveStep] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
-    const [isSearching, setIsSearching] = useState(false);
+    const [_isSearching, setIsSearching] = useState(false);
     const [error, setError] = useState<string>('');
 
     const [question, setQuestion] = useState('');
@@ -33,7 +33,7 @@ const ResearchWorkflow: React.FC = () => {
     const [expandedQueries, setExpandedQueries] = useState<string[]>([]);
 
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-    const [selectedSources, setSelectedSources] = useState<SearchResult[]>([]);
+    const [_selectedSources, setSelectedSources] = useState<SearchResult[]>([]);
     const [sourceContent, setSourceContent] = useState<URLContent[]>([]);
     const [researchAnswer, setResearchAnswer] = useState<ResearchAnswerType | null>(null);
 
@@ -226,7 +226,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
     };
 
     // Step 4 handler: Select sources
-    const handleSourceSelection = async (selected: SearchResult[]): Promise<void> => {
+    const handleSourceSelection = async (_selected: SearchResult[]): Promise<void> => {
         try {
             setIsLoading(true);
             setSelectedSources(Array.from(selectedSourcesSet));
@@ -352,7 +352,6 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                 <InitialQuestion
                     {...props}
                     question={question}
-                    isLoading={isLoading}
                     error={error}
                     onQuestionChange={setQuestion}
                 />
