@@ -7,13 +7,20 @@ interface Props {
     analysisMarkdown: string;
     isLoading: boolean;
     onProceed: () => void;
+    question: string;
 }
 
 const QuestionAnalysis: React.FC<Props> = ({
-    analysisMarkdown
+    analysisMarkdown,
+    question
 }) => {
     return (
         <div className="space-y-6 text-gray-900 dark:text-gray-100">
+            <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold mb-2">Original Question</h3>
+                <p className="text-gray-700 dark:text-gray-300">{question}</p>
+            </div>
+
             <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
                 <h3 className="text-lg font-semibold mb-2">AI Analysis</h3>
                 <div className="prose prose-sm md:prose-base lg:prose-lg dark:prose-invert max-w-none prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-strong:text-gray-900 dark:prose-strong:text-gray-100 prose-ul:list-disc prose-ol:list-decimal">

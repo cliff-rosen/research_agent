@@ -369,6 +369,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                 <QuestionAnalysis
                     {...props}
                     analysisMarkdown={analysisMarkdown}
+                    question={question}
                 />
             )
         },
