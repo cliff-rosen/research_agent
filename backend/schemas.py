@@ -81,6 +81,27 @@ class URLContent(BaseModel):
 ##### RESEARCH SCHEMA #####
 
 
+class CurrentEventsCheck(BaseModel):
+    """Schema for current events context check results"""
+    requires_current_context: bool = Field(
+        description="Whether the question requires current events context"
+    )
+    reasoning: str = Field(
+        description="Explanation of why current context is or isn't needed"
+    )
+    timeframe: str = Field(
+        description="If context is needed, how recent should the context be"
+    )
+    key_events: List[str] = Field(
+        description="Key events or developments to look for"
+    )
+    search_queries: List[str] = Field(
+        description="Suggested search queries to gather context"
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class QuestionAnalysis(BaseModel):
     """Schema for question analysis results"""
     key_components: List[str] = Field(

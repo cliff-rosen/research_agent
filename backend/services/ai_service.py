@@ -8,6 +8,8 @@ from schemas import QuestionAnalysis, ResearchAnswer, URLContent
 
 logger = logging.getLogger(__name__)
 
+FAST_MODEL = "claude-3-5-haiku-20241022"
+
 EXPAND_QUESTION_PROMPT = """You are a search query expansion expert that helps users find comprehensive information by generating relevant alternative search queries.
 
 Break down the question into multiple search queries that will help find comprehensive information. Consider:
@@ -127,6 +129,42 @@ Example response format:
 
 IMPORTANT: Your response must be ONLY a valid JSON object. Do not include any explanatory text, markdown formatting, or code blocks outside the JSON structure."""
 
+CURRENT_EVENTS_CHECK_PROMPT = """You are an expert at determining whether questions require current events context to be properly understood and answered.
+
+Analyze if the given question requires current events context. Consider:
+- Whether the answer would be significantly different based on recent events
+- If understanding current developments is crucial to providing an accurate answer
+- Whether the question explicitly or implicitly references ongoing situations
+- If the topic is rapidly evolving or in active development
+
+Return a JSON object with these fields:
+{
+    "requires_current_context": boolean,  // Whether current events context is needed
+    "reasoning": string,  // Explanation of why current context is or isn't needed
+    "timeframe": string,  // If context is needed, how recent should the context be? (e.g. "past week", "past month", "past year")
+    "key_events": [string],  // If context is needed, what are the key events/developments to look for
+    "search_queries": [string]  // If context is needed, suggested search queries to gather this context
+}
+
+Example response for "What are the implications of the latest banking regulations?":
+{
+    "requires_current_context": true,
+    "reasoning": "Banking regulations are actively changing with recent financial events",
+    "timeframe": "past 6 months",
+    "key_events": [
+        "Recent bank failures and regulatory responses",
+        "New federal reserve policies",
+        "Legislative changes in banking oversight"
+    ],
+    "search_queries": [
+        "latest banking regulations 2024",
+        "recent changes banking oversight",
+        "bank failure new regulations"
+    ]
+}
+
+IMPORTANT: Return ONLY the JSON object, no additional text or explanation."""
+
 
 class AIService:
     def __init__(self):
@@ -141,7 +179,7 @@ class AIService:
         else:
             raise ValueError(f"Unsupported provider: {provider}")
 
-    async def analyze_question_scope(self, question: str, model: Optional[str] = None) -> QuestionAnalysis:
+    async def analyze_question(self, question: str, model: Optional[str] = None) -> QuestionAnalysis:
         """
         Analyze a question to determine its key components, scope, and success criteria.
 
@@ -203,7 +241,7 @@ class AIService:
                 conflicting_viewpoints=[]
             )
 
-    async def analyze_question_scope_stream(self, question: str, model: Optional[str] = None) -> AsyncGenerator[str, None]:
+    async def analyze_question_stream(self, question: str, model: Optional[str] = None) -> AsyncGenerator[str, None]:
         """
         Stream the analysis of a question, returning raw response chunks as they arrive.
 
@@ -559,6 +597,88 @@ class AIService:
             logger.info(
                 f"Returning default scores for {len(default_scores)} results")
             return default_scores
+
+    async def check_current_events_context(self, question: str, model: Optional[str] = None) -> Dict:
+        """
+        Analyze whether a question requires current events context to be properly understood and answered.
+
+        Args:
+            question: The question to analyze
+            model: Optional specific model to use
+
+        Returns:
+            Dict containing analysis of current events context requirements
+        """
+        try:
+            messages = [
+                {"role": "user", "content": f"Question: {question}"}
+            ]
+
+            content = await self.provider.create_chat_completion(
+                messages=messages,
+                system=CURRENT_EVENTS_CHECK_PROMPT,
+                model=FAST_MODEL
+            )
+
+            try:
+                # Clean the response string
+                response_text = content.strip()
+                if response_text.startswith('```json'):
+                    response_text = response_text.split('```')[1].strip()
+                elif response_text.startswith('```'):
+                    response_text = response_text.split('```')[1].strip()
+
+                # Parse JSON response
+                import json
+                return json.loads(response_text)
+
+            except json.JSONDecodeError as e:
+                logger.error(
+                    f"Error parsing current events check JSON response: {str(e)}\nResponse: {content}")
+                return {
+                    "requires_current_context": False,
+                    "reasoning": "Error analyzing current events context",
+                    "timeframe": "",
+                    "key_events": [],
+                    "search_queries": []
+                }
+
+        except Exception as e:
+            logger.error(f"Error in check_current_events_context: {str(e)}")
+            return {
+                "requires_current_context": False,
+                "reasoning": "Error analyzing current events context",
+                "timeframe": "",
+                "key_events": [],
+                "search_queries": []
+            }
+
+    async def check_current_events_context_stream(self, question: str, model: Optional[str] = None) -> AsyncGenerator[str, None]:
+        """
+        Stream the analysis of whether a question requires current events context.
+
+        Args:
+            question: The question to analyze
+            model: Optional specific model to use
+
+        Yields:
+            Raw text chunks from the LLM response
+        """
+        try:
+            messages = [
+                {"role": "user", "content": f"Question: {question}"}
+            ]
+
+            async for chunk in self.provider.create_chat_completion_stream(
+                messages=messages,
+                system=CURRENT_EVENTS_CHECK_PROMPT,
+                model=model
+            ):
+                yield chunk
+
+        except Exception as e:
+            logger.error(f"Error in check_current_events_context_stream: {str(e)}")
+            raise
 
 
 # Create a singleton instance

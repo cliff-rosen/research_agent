@@ -2,6 +2,14 @@ import { api, handleApiError } from './index'
 import { SearchResult, URLContent } from './searchApi'
 import { makeStreamRequest, StreamUpdate } from './streamUtils'
 
+export interface CurrentEventsCheck {
+    requires_current_context: boolean;
+    reasoning: string;
+    timeframe: string;
+    key_events: string[];
+    search_queries: string[];
+}
+
 export interface QuestionAnalysisResponse {
     key_components: string[];
     scope_boundaries: string[];
@@ -18,6 +26,19 @@ export interface ResearchAnswer {
 export type { SearchResult, StreamUpdate };
 
 export const researchApi = {
+    checkCurrentEventsStream: async function* (question: string): AsyncGenerator<StreamUpdate> {
+        yield* makeStreamRequest('/api/research/check-current-events/stream', { question });
+    },
+
+    checkCurrentEvents: async (question: string): Promise<CurrentEventsCheck> => {
+        try {
+            const response = await api.get(`/api/research/check-current-events?question=${encodeURIComponent(question)}`);
+            return response.data;
+        } catch (error) {
+            throw handleApiError(error);
+        }
+    },
+
     analyzeQuestionStream: async function* (question: string): AsyncGenerator<StreamUpdate> {
         yield* makeStreamRequest('/api/research/analyze-question/stream', { question });
     },
@@ -26,7 +47,6 @@ export const researchApi = {
         yield* makeStreamRequest('/api/research/expand-question/stream', { question });
     },
 
-    // Add new streaming method
     executeQueriesStream: async function* (queries: string[]): AsyncGenerator<StreamUpdate> {
         yield* makeStreamRequest('/api/research/execute-queries/stream', { queries });
     },
@@ -74,5 +94,4 @@ export const researchApi = {
             throw handleApiError(error);
         }
     },
-
 } 

@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from database import get_db
 from services import auth_service, ai_service
 from services.research_service import research_service
-from schemas import SearchResult, ResearchAnswer, URLContent, QuestionAnalysis, ExecuteQueriesRequest, GetResearchAnswerRequest
+from schemas import SearchResult, ResearchAnswer, URLContent, QuestionAnalysis, ExecuteQueriesRequest, GetResearchAnswerRequest, CurrentEventsCheck
 import logging
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ async def analyze_question_stream(
         f"analyze_question_stream endpoint called with question: {question}")
 
     return StreamingResponse(
-        research_service.analyze_question_scope_stream(question),
+        research_service.analyze_question_stream(question),
         media_type="application/x-ndjson"
     )
 
@@ -149,7 +149,7 @@ async def analyze_question(
     logger.info(f"analyze_question endpoint called with question: {question}")
 
     # Analyze the question using research service
-    analysis = await research_service.analyze_question_scope(question)
+    analysis = await research_service.analyze_question(question)
 
     return analysis
 
@@ -276,3 +276,90 @@ async def get_research_answer(
         source_content=request.source_content
     )
     return result
+
+
+@router.get(
+    "/check-current-events/stream",
+    summary="Stream the current events context check process",
+    responses={
+        200: {
+            "description": "Current events context check streamed successfully",
+            "content": {
+                "application/x-ndjson": {
+                    "example": {
+                        "requires_current_context": True,
+                        "reasoning": "Question involves recent developments",
+                        "timeframe": "past month",
+                        "key_events": ["event1", "event2"],
+                        "search_queries": ["query1", "query2"]
+                    }
+                }
+            }
+        },
+        401: {"description": "Not authenticated"}
+    }
+)
+async def check_current_events_stream(
+    question: str = Query(
+        description="The question to check for current events context requirements"
+    ),
+    current_user=Depends(auth_service.validate_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Stream the process of checking whether a question requires current events context.
+
+    Parameters:
+    - **question**: The input question to analyze
+
+    Returns a stream of JSON objects containing the analysis of current events context requirements.
+    """
+    logger.info(
+        f"check_current_events_stream endpoint called with question: {question}")
+
+    return StreamingResponse(
+        research_service.check_current_events_context_stream(question),
+        media_type="application/x-ndjson"
+    )
+
+
+@router.get(
+    "/check-current-events",
+    response_model=CurrentEventsCheck,
+    summary="Check if a question requires current events context",
+    responses={
+        200: {
+            "description": "Current events context check completed successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "requires_current_context": True,
+                        "reasoning": "Question involves recent developments",
+                        "timeframe": "past month",
+                        "key_events": ["event1", "event2"],
+                        "search_queries": ["query1", "query2"]
+                    }
+                }
+            }
+        },
+        401: {"description": "Not authenticated"}
+    }
+)
+async def check_current_events(
+    question: str = Query(
+        description="The question to check for current events context requirements"
+    ),
+    current_user=Depends(auth_service.validate_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Check whether a question requires current events context.
+
+    Parameters:
+    - **question**: The input question to analyze
+
+    Returns an analysis of whether current events context is needed and how to gather it.
+    """
+    logger.info(f"check_current_events endpoint called with question: {question}")
+
+    return await research_service.check_current_events_context(question)

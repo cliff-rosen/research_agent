@@ -4,7 +4,7 @@ from typing import List, Dict, Optional
 from config.settings import settings
 from services.ai_service import ai_service
 from services.search_service import google_search, score_and_rank_results
-from schemas import SearchResult, QuestionAnalysis
+from schemas import SearchResult, QuestionAnalysis, CurrentEventsCheck
 import json
 import asyncio
 
@@ -15,15 +15,102 @@ class ResearchService:
     def __init__(self):
         self.search_wrapper = None
 
-    async def analyze_question_scope_stream(self, question: str):
+    async def check_current_events_context_stream(self, question: str):
+        """
+        Stream the current events context check process.
+        """
+        try:
+            logger.info(f"Checking current events context (streaming): {question}")
+
+            async for chunk in ai_service.check_current_events_context_stream(question):
+                yield chunk
+
+        except Exception as e:
+            logger.error(f"Error in streaming current events check: {str(e)}")
+            yield "Error checking current events context. Please try again.\n"
+
+    async def check_current_events_context(self, question: str) -> CurrentEventsCheck:
+        """
+        Check if a question requires current events context.
+        """
+        try:
+            logger.info(f"Checking current events context: {question}")
+            result = await ai_service.check_current_events_context(question)
+            return CurrentEventsCheck(**result)
+
+        except Exception as e:
+            logger.error(f"Error checking current events context: {str(e)}")
+            return CurrentEventsCheck(
+                requires_current_context=False,
+                reasoning="Error checking current events context",
+                timeframe="",
+                key_events=[],
+                search_queries=[]
+            )
+
+    async def gather_current_events_context(self, check_result: CurrentEventsCheck) -> List[SearchResult]:
+        """
+        Gather current events context using the search queries from the check result.
+        """
+        try:
+            logger.info(f"Gathering current events context with {len(check_result.search_queries)} queries")
+            
+            # Execute all search queries in parallel
+            tasks = [asyncio.create_task(
+                self._search_with_query(query)) for query in check_result.search_queries]
+            
+            all_results = []
+            seen_urls = set()
+
+            # Collect and deduplicate results
+            for completed in asyncio.as_completed(tasks):
+                search_result = await completed
+                results = search_result.get('results', [])
+                
+                for result in results:
+                    if result["link"] not in seen_urls:
+                        seen_urls.add(result["link"])
+                        search_result = SearchResult(
+                            title=result["title"],
+                            link=result["link"],
+                            snippet=result["snippet"],
+                            displayLink=result["displayLink"],
+                            pagemap=result["pagemap"],
+                            relevance_score=0.0
+                        )
+                        all_results.append(search_result)
+
+            return all_results
+
+        except Exception as e:
+            logger.error(f"Error gathering current events context: {str(e)}")
+            return []
+
+    async def analyze_question_stream(self, question: str):
         """
         Stream the question analysis process.
         """
         try:
             logger.info(f"Analyzing question (streaming): {question}")
 
-            async for chunk in ai_service.analyze_question_scope_stream(question):
-                # Stream the markdown text directly
+            # First, check if we need current events context
+            check_result = await self.check_current_events_context(question)
+            
+            if check_result.requires_current_context:
+                # If we need context, gather it first
+                context_results = await self.gather_current_events_context(check_result)
+                
+                # Add context to the question
+                context_summary = "\n\nCurrent Events Context:\n" + "\n".join([
+                    f"- {result.title}: {result.snippet}"
+                    for result in context_results[:5]  # Use top 5 most relevant results
+                ])
+                enhanced_question = question + context_summary
+            else:
+                enhanced_question = question
+
+            # Now proceed with the regular analysis
+            async for chunk in ai_service.analyze_question_stream(enhanced_question):
                 yield chunk
 
         except Exception as e:
@@ -205,7 +292,7 @@ class ResearchService:
             logger.error(f"Error executing queries: {str(e)}")
             return []
 
-    async def analyze_question_scope(self, question: str) -> QuestionAnalysis:
+    async def analyze_question(self, question: str) -> QuestionAnalysis:
         """
         Analyze a question to identify its core components, scope, and success criteria.
 
@@ -219,7 +306,7 @@ class ResearchService:
             logger.info(f"Analyzing question: {question}")
 
             # Use AI service to analyze the question and get QuestionAnalysis model
-            result = await ai_service.analyze_question_scope(question)
+            result = await ai_service.analyze_question(question)
 
             # Log analysis results using model attributes
             logger.info(
