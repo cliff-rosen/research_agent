@@ -8,7 +8,7 @@ interface Settings {
 }
 
 const productionSettings: Settings = {
-    apiUrl: 'https://cognify-api.ironcliff.ai',
+    apiUrl: 'https://ra-api.ironcliff.ai',
     appName: 'Research Agent'
 };
 

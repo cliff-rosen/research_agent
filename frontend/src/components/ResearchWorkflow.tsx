@@ -408,6 +408,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                     selectedSources={selectedSourcesSet}
                     onSourceToggle={handleSourceToggle}
                     onSelectAll={handleSourceSelectAll}
+                    isLoading={isLoading}
                 />
             )
         },

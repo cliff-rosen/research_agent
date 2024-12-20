@@ -6,19 +6,32 @@ interface SourceSelectionProps {
     selectedSources: Set<SearchResult>;
     onSourceToggle: (source: SearchResult) => void;
     onSelectAll: () => void;
+    isLoading?: boolean;
 }
 
 const SourceSelection: React.FC<SourceSelectionProps> = ({
     searchResults,
     selectedSources,
     onSourceToggle,
-    onSelectAll
+    onSelectAll,
+    isLoading = false
 }) => {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
                 <div className="flex items-center space-x-4">
-                    <span>{searchResults.length} sources found</span>
+                    <span>
+                        {isLoading ? (
+                            <span className="flex items-center gap-2">
+                                <span className="animate-pulse">Searching...</span>
+                                {searchResults.length > 0 && (
+                                    <span>({searchResults.length} sources so far)</span>
+                                )}
+                            </span>
+                        ) : (
+                            `${searchResults.length} sources found`
+                        )}
+                    </span>
                     <div className="flex items-center space-x-2">
                         <input
                             type="checkbox"
@@ -36,8 +49,8 @@ const SourceSelection: React.FC<SourceSelectionProps> = ({
                     <div
                         key={index}
                         className={`bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden cursor-pointer transition-colors ${selectedSources.has(result)
-                                ? 'ring-2 ring-blue-500 dark:ring-blue-400'
-                                : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                            ? 'ring-2 ring-blue-500 dark:ring-blue-400'
+                            : 'hover:bg-gray-50 dark:hover:bg-gray-700'
                             }`}
                         onClick={() => onSourceToggle(result)}
                     >
@@ -63,8 +76,8 @@ const SourceSelection: React.FC<SourceSelectionProps> = ({
                                 </div>
                                 <div className="ml-4">
                                     <div className={`px-3 py-1 rounded-full text-sm font-medium ${result.relevance_score >= 90 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                                            result.relevance_score >= 70 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                                                'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                        result.relevance_score >= 70 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                                            'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                                         }`}>
                                         {result.relevance_score.toFixed(0)}% relevant
                                     </div>
