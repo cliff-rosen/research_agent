@@ -4,7 +4,7 @@ from typing import List, Dict, Optional
 from config.settings import settings
 from services.ai_service import ai_service
 from services.search_service import google_search, score_and_rank_results
-from schemas import SearchResult, QuestionAnalysis, CurrentEventsCheck
+from schemas import SearchResult, QuestionAnalysis, CurrentEventsCheck, ResearchEvaluation
 import json
 import asyncio
 
@@ -20,7 +20,8 @@ class ResearchService:
         Stream the current events context check process.
         """
         try:
-            logger.info(f"Checking current events context (streaming): {question}")
+            logger.info(
+                f"Checking current events context (streaming): {question}")
 
             async for chunk in ai_service.check_current_events_context_stream(question):
                 yield chunk
@@ -53,12 +54,13 @@ class ResearchService:
         Gather current events context using the search queries from the check result.
         """
         try:
-            logger.info(f"Gathering current events context with {len(check_result.search_queries)} queries")
-            
+            logger.info(
+                f"Gathering current events context with {len(check_result.search_queries)} queries")
+
             # Execute all search queries in parallel
             tasks = [asyncio.create_task(
                 self._search_with_query(query)) for query in check_result.search_queries]
-            
+
             all_results = []
             seen_urls = set()
 
@@ -66,7 +68,7 @@ class ResearchService:
             for completed in asyncio.as_completed(tasks):
                 search_result = await completed
                 results = search_result.get('results', [])
-                
+
                 for result in results:
                     if result["link"] not in seen_urls:
                         seen_urls.add(result["link"])
@@ -95,15 +97,16 @@ class ResearchService:
 
             # First, check if we need current events context
             check_result = await self.check_current_events_context(question)
-            
+
             if check_result.requires_current_context:
                 # If we need context, gather it first
                 context_results = await self.gather_current_events_context(check_result)
-                
+
                 # Add context to the question
                 context_summary = "\n\nCurrent Events Context:\n" + "\n".join([
                     f"- {result.title}: {result.snippet}"
-                    for result in context_results[:5]  # Use top 5 most relevant results
+                    # Use top 5 most relevant results
+                    for result in context_results[:5]
                 ])
                 enhanced_question = question + context_summary
             else:
@@ -228,6 +231,47 @@ class ResearchService:
         except Exception as e:
             logger.error(f"Error in streaming execution: {str(e)}")
             yield json.dumps({"error": str(e)}) + "\n"
+
+    async def evaluate_answer(self, question: str, analysis: QuestionAnalysis, answer: str) -> ResearchEvaluation:
+        """
+        Evaluate how well an answer addresses a research question.
+
+        Args:
+            question (str): The original research question
+            analysis (QuestionAnalysis): The analysis of the question's components
+            answer (str): The answer to evaluate
+
+        Returns:
+            ResearchEvaluation: Detailed evaluation of the answer
+        """
+        try:
+            logger.info(f"Evaluating answer for question: {question}")
+
+            # Use AI service to evaluate the answer
+            evaluation = await ai_service.evaluate_answer(
+                question=question,
+                key_components=analysis.key_components,
+                scope_boundaries=analysis.scope_boundaries,
+                success_criteria=analysis.success_criteria,
+                answer=answer
+            )
+
+            return ResearchEvaluation(**evaluation)
+
+        except Exception as e:
+            logger.error(f"Error evaluating answer: {str(e)}")
+            return ResearchEvaluation(
+                completeness_score=0.0,
+                accuracy_score=0.0,
+                relevance_score=0.0,
+                overall_score=0.0,
+                missing_aspects=["Error occurred during evaluation"],
+                improvement_suggestions=["Please try again"],
+                conflicting_aspects=[{
+                    "aspect": "Evaluation Error",
+                    "conflict": f"An error occurred during evaluation: {str(e)}"
+                }]
+            )
 
     # DEPRECATED
 

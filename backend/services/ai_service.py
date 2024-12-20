@@ -165,6 +165,60 @@ Example response for "What are the implications of the latest banking regulation
 
 IMPORTANT: Return ONLY the JSON object, no additional text or explanation."""
 
+EVALUATE_ANSWER_PROMPT = """You are an expert at evaluating research answers for completeness, accuracy, and relevance.
+
+Analyze how well the provided answer addresses the research question, considering:
+1. The key components identified in the question analysis
+2. The scope boundaries defined
+3. The success criteria established
+4. Any conflicting viewpoints noted
+
+Return a JSON object with these fields:
+{
+    "completeness_score": float,  // 0-100 score for how completely the answer addresses all aspects
+    "accuracy_score": float,      // 0-100 score for factual accuracy
+    "relevance_score": float,     // 0-100 score for how relevant the answer is to the question
+    "overall_score": float,       // 0-100 weighted average of the above scores
+    "missing_aspects": [string],  // List of key aspects not addressed in the answer
+    "improvement_suggestions": [string],  // List of specific suggestions to improve the answer
+    "conflicting_aspects": [      // List of conflicts found in the answer
+        {
+            "aspect": string,     // The aspect where conflict was found
+            "conflict": string    // Description of the conflict
+        }
+    ]
+}
+
+Scoring Guidelines:
+- Completeness: How many key components and success criteria are addressed
+- Accuracy: Factual correctness and proper use of information
+- Relevance: How well it stays within scope boundaries and addresses the core question
+- Overall: Weighted combination of the above, considering relative importance
+
+Example response:
+{
+    "completeness_score": 85.5,
+    "accuracy_score": 90.0,
+    "relevance_score": 88.5,
+    "overall_score": 88.0,
+    "missing_aspects": [
+        "Economic impact analysis",
+        "Long-term sustainability considerations"
+    ],
+    "improvement_suggestions": [
+        "Include more quantitative data",
+        "Address economic implications"
+    ],
+    "conflicting_aspects": [
+        {
+            "aspect": "Timeline analysis",
+            "conflict": "Answer states the event occurred in 2020 but later references it happening in 2021"
+        }
+    ]
+}
+
+IMPORTANT: Return ONLY the JSON object. Do not include any explanatory text or markdown formatting."""
+
 
 class AIService:
     def __init__(self):
@@ -677,8 +731,113 @@ class AIService:
                 yield chunk
 
         except Exception as e:
-            logger.error(f"Error in check_current_events_context_stream: {str(e)}")
+            logger.error(
+                f"Error in check_current_events_context_stream: {str(e)}")
             raise
+
+    async def evaluate_answer(self,
+                              question: str,
+                              key_components: List[str],
+                              scope_boundaries: List[str],
+                              success_criteria: List[str],
+                              answer: str,
+                              model: Optional[str] = None
+                              ) -> Dict:
+        """
+        Evaluate how well an answer addresses a research question.
+
+        Args:
+            question: The original research question
+            key_components: Key components identified in the question
+            scope_boundaries: Identified boundaries and scope
+            success_criteria: Criteria for a successful answer
+            answer: The answer to evaluate
+            model: Optional specific model to use
+
+        Returns:
+            Dict containing the evaluation scores and feedback
+        """
+        try:
+            # Format the analysis components for the prompt
+            analysis_text = f"""
+Question Analysis:
+- Key Components: {', '.join(key_components)}
+- Scope Boundaries: {', '.join(scope_boundaries)}
+- Success Criteria: {', '.join(success_criteria)}
+
+Question: {question}
+
+Answer to Evaluate: {answer}
+"""
+            messages = [
+                {"role": "user", "content": analysis_text}
+            ]
+
+            content = await self.provider.create_chat_completion(
+                messages=messages,
+                system=EVALUATE_ANSWER_PROMPT,
+                model=model or FAST_MODEL
+            )
+
+            try:
+                # Clean the response string
+                response_text = content.strip()
+                if response_text.startswith('```json'):
+                    response_text = response_text.split('```')[1].strip()
+                elif response_text.startswith('```'):
+                    response_text = response_text.split('```')[1].strip()
+
+                # Parse JSON response
+                import json
+                result = json.loads(response_text)
+
+                # Ensure all required fields are present with valid values
+                result['completeness_score'] = max(
+                    0.0, min(100.0, float(result.get('completeness_score', 0.0))))
+                result['accuracy_score'] = max(
+                    0.0, min(100.0, float(result.get('accuracy_score', 0.0))))
+                result['relevance_score'] = max(
+                    0.0, min(100.0, float(result.get('relevance_score', 0.0))))
+                result['overall_score'] = max(
+                    0.0, min(100.0, float(result.get('overall_score', 0.0))))
+                result['missing_aspects'] = result.get('missing_aspects', [])
+                result['improvement_suggestions'] = result.get(
+                    'improvement_suggestions', [])
+                result['conflicting_aspects'] = result.get(
+                    'conflicting_aspects', [])
+
+                return result
+
+            except json.JSONDecodeError as e:
+                logger.error(
+                    f"Error parsing evaluation JSON response: {str(e)}\nResponse: {content}")
+                return {
+                    "completeness_score": 0.0,
+                    "accuracy_score": 0.0,
+                    "relevance_score": 0.0,
+                    "overall_score": 0.0,
+                    "missing_aspects": ["Error evaluating answer"],
+                    "improvement_suggestions": ["Please try again"],
+                    "conflicting_aspects": [{
+                        "aspect": "Evaluation Error",
+                        "conflict": f"An error occurred during evaluation: {str(e)}"
+                    }]
+                }
+
+        except Exception as e:
+            logger.error(f"Error in evaluate_answer: {str(e)}")
+            return {
+                "completeness_score": 0.0,
+                "accuracy_score": 0.0,
+                "relevance_score": 0.0,
+                "overall_score": 0.0,
+                "missing_aspects": ["Error evaluating answer"],
+                "improvement_suggestions": ["Please try again"],
+                "conflicting_aspects": [{
+                    "aspect": "Evaluation Error",
+                    "conflict": f"An error occurred during evaluation: {str(e)}"
+                }]
+            }
 
 
 # Create a singleton instance

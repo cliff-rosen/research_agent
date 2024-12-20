@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from database import get_db
 from services import auth_service, ai_service
 from services.research_service import research_service
-from schemas import SearchResult, ResearchAnswer, URLContent, QuestionAnalysis, ExecuteQueriesRequest, GetResearchAnswerRequest, CurrentEventsCheck
+from schemas import SearchResult, ResearchAnswer, URLContent, QuestionAnalysis, ExecuteQueriesRequest, GetResearchAnswerRequest, CurrentEventsCheck, ResearchEvaluation, EvaluateAnswerRequest
 import logging
 
 logger = logging.getLogger(__name__)
@@ -278,6 +278,74 @@ async def get_research_answer(
     return result
 
 
+@router.post(
+    "/evaluate-answer",
+    response_model=ResearchEvaluation,
+    summary="Evaluate how well an answer addresses a research question",
+    responses={
+        200: {
+            "description": "Answer evaluation completed successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "completeness_score": 85.5,
+                        "accuracy_score": 90.0,
+                        "relevance_score": 88.5,
+                        "overall_score": 88.0,
+                        "missing_aspects": [
+                            "Economic impact analysis",
+                            "Long-term sustainability considerations"
+                        ],
+                        "improvement_suggestions": [
+                            "Include more quantitative data",
+                            "Address economic implications"
+                        ],
+                        "conflicting_aspects": [
+                            {
+                                "aspect": "Timeline analysis",
+                                "conflict": "Inconsistent dates mentioned for key events"
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        401: {"description": "Not authenticated"}
+    }
+)
+async def evaluate_answer(
+    request: EvaluateAnswerRequest,
+    current_user=Depends(auth_service.validate_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Evaluate how well an answer addresses a research question.
+
+    Parameters:
+    - **request**: EvaluateAnswerRequest containing:
+        - question: The original research question
+        - analysis: The analysis of the question's components
+        - answer: The answer to evaluate
+
+    Returns a detailed evaluation including:
+    - Completeness score
+    - Accuracy score
+    - Relevance score
+    - Overall score
+    - Missing aspects
+    - Improvement suggestions
+    - Conflicting aspects
+    """
+    logger.info(
+        f"evaluate_answer endpoint called with question: {request.question}")
+
+    return await research_service.evaluate_answer(
+        question=request.question,
+        analysis=request.analysis,
+        answer=request.answer
+    )
+
+
 @router.get(
     "/check-current-events/stream",
     summary="Stream the current events context check process",
@@ -360,6 +428,7 @@ async def check_current_events(
 
     Returns an analysis of whether current events context is needed and how to gather it.
     """
-    logger.info(f"check_current_events endpoint called with question: {question}")
+    logger.info(
+        f"check_current_events endpoint called with question: {question}")
 
     return await research_service.check_current_events_context(question)

@@ -132,6 +132,60 @@ class GetResearchAnswerRequest(BaseModel):
         description="List of URL content to analyze")
 
 
+class EvaluateAnswerRequest(BaseModel):
+    """Request model for evaluating research answers"""
+    question: str = Field(description="The original research question")
+    analysis: QuestionAnalysis = Field(
+        description="The analysis of the question's components")
+    answer: str = Field(description="The answer to evaluate")
+
+
+class ResearchEvaluation(BaseModel):
+    """Schema for evaluating how well an answer addresses a question"""
+    completeness_score: float = Field(
+        description="Score for how completely the answer addresses all aspects of the question (0-100)",
+        ge=0.0,
+        le=100.0
+    )
+    accuracy_score: float = Field(
+        description="Score for factual accuracy of the answer (0-100)",
+        ge=0.0,
+        le=100.0
+    )
+    relevance_score: float = Field(
+        description="Score for how relevant the answer is to the question (0-100)",
+        ge=0.0,
+        le=100.0
+    )
+    overall_score: float = Field(
+        description="Overall evaluation score (0-100)",
+        ge=0.0,
+        le=100.0
+    )
+    missing_aspects: List[str] = Field(
+        description="Key aspects of the question that were not addressed in the answer"
+    )
+    improvement_suggestions: List[str] = Field(
+        description="Specific suggestions for improving the answer"
+    )
+    conflicting_aspects: List[Dict[str, str]] = Field(
+        description="Aspects of the answer that conflict with requirements or have internal inconsistencies",
+        default_factory=list,
+        example=[
+            {
+                "aspect": "Timeline of events",
+                "conflict": "Answer states the event occurred in 2020 but later references it happening in 2021"
+            },
+            {
+                "aspect": "Scope boundary",
+                "conflict": "Answer discusses European markets when question specifically asked about Asian markets"
+            }
+        ]
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ResearchAnswer(BaseModel):
     """Schema for final research answer"""
     answer: str = Field(description="Final synthesized answer")
