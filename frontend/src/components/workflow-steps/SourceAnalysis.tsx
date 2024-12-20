@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { URLContent } from '../lib/api/searchApi';
+import { URLContent } from '../../lib/api/searchApi';
 import DOMPurify from 'dompurify';
 
 interface SourceAnalysisProps {
@@ -283,4 +283,5 @@ const SourceAnalysis: React.FC<SourceAnalysisProps> = ({ sourceContent }) => {
     );
 };
 
-export default SourceAnalysis; 
+export default SourceAnalysis; // Move from frontend/src/components/SourceAnalysis.tsx
+// ... existing SourceAnalysis component code ... 

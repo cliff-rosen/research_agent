@@ -1,5 +1,5 @@
 import React from 'react';
-import { QuestionAnalysisResponse } from '../lib/api/researchApi';
+import { QuestionAnalysisResponse } from '../../lib/api/researchApi';
 import ReactMarkdown from 'react-markdown';
 
 interface Props {

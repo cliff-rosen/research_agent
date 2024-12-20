@@ -1,5 +1,5 @@
 import React from 'react';
-import { SearchResult } from '../lib/api/researchApi';
+import { SearchResult } from '../../lib/api/researchApi';
 
 interface SourceSelectionProps {
     searchResults: SearchResult[];

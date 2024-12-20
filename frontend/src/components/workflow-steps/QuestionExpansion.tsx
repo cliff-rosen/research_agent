@@ -100,4 +100,5 @@ const QuestionExpansion: React.FC<Props> = ({
     );
 };
 
-export default QuestionExpansion; 
+export default QuestionExpansion; // Move from frontend/src/components/QuestionExpansion.tsx
+// ... existing QuestionExpansion component code ... 

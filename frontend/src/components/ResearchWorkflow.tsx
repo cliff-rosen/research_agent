@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { researchApi, QuestionAnalysisResponse, SearchResult, ResearchAnswer as ResearchAnswerType } from '../lib/api/researchApi';
 import { searchApi, URLContent } from '../lib/api/searchApi';
-import QuestionExpansion from '../components/QuestionExpansion';
-import SourceSelection from './SourceSelection';
-import QuestionAnalysis from './QuestionAnalysis';
-import SourceAnalysis from './SourceAnalysis';
-import ResearchAnswer from './ResearchAnswer';
-import InitialQuestion from './InitialQuestion';
+import {
+    InitialQuestion,
+    QuestionAnalysis,
+    QuestionExpansion,
+    SourceSelection,
+    SourceAnalysis,
+    ResearchAnswer
+} from './workflow-steps';
 
 interface WorkflowStep {
     label: string;
@@ -471,7 +473,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                                     : 'bg-gray-50 border border-gray-200 text-gray-600 dark:bg-gray-800/50 dark:border-gray-700 dark:text-gray-400'
                                 }`}
                         >
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${index === activeStep
+                            <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${index === activeStep
                                 ? 'bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-200'
                                 : index < activeStep
                                     ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200'
