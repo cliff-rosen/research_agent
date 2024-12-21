@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { researchApi, QuestionAnalysisResponse, SearchResult, ResearchAnswer as ResearchAnswerType } from '../lib/api/researchApi';
+import { researchApi, QuestionAnalysisResponse, SearchResult, ResearchAnswer as ResearchAnswerType, ResearchEvaluation } from '../lib/api/researchApi';
 import { searchApi, URLContent } from '../lib/api/searchApi';
 import {
     InitialQuestion,
@@ -38,6 +38,7 @@ const ResearchWorkflow: React.FC = () => {
     const [_selectedSources, setSelectedSources] = useState<SearchResult[]>([]);
     const [sourceContent, setSourceContent] = useState<URLContent[]>([]);
     const [researchAnswer, setResearchAnswer] = useState<ResearchAnswerType | null>(null);
+    const [evaluation, setEvaluation] = useState<ResearchEvaluation | null>(null);
 
     const [showAsList, setShowAsList] = useState(false);
     const [selectedQueries, setSelectedQueries] = useState<Set<string>>(new Set());
@@ -255,8 +256,20 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
             setIsLoading(true);
             setError('');
 
+            // Get the research answer
             const answer = await researchApi.getResearchAnswer(enhancedQuestion, sourceContent);
             setResearchAnswer(answer);
+
+            // Evaluate the answer if we have the necessary components
+            if (analysis) {
+                const answerEvaluation = await researchApi.evaluateAnswer(
+                    question,
+                    analysis,
+                    answer.answer
+                );
+                setEvaluation(answerEvaluation);
+            }
+
             handleNext();
         } catch (error) {
             console.error('Error getting research answer:', error);
@@ -335,6 +348,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         setSelectedSourcesSet(new Set());
         setSourceContent([]);
         setResearchAnswer(null);
+        setEvaluation(null);
     };
 
     const renderStepContent = (step: number) => {
@@ -440,6 +454,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                             answer={researchAnswer}
                             originalQuestion={question}
                             analysis={analysis!}
+                            evaluation={evaluation}
                         />
                         <div className="mt-6 flex justify-center">
                             <button

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ResearchAnswer as ResearchAnswerType } from '../../lib/api/researchApi';
+import { ResearchAnswer as ResearchAnswerType, ResearchEvaluation } from '../../lib/api/researchApi';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -12,9 +12,10 @@ interface ResearchAnswerProps {
         success_criteria: string[];
         conflicting_viewpoints: string[];
     };
+    evaluation: ResearchEvaluation | null;
 }
 
-const ResearchAnswer: React.FC<ResearchAnswerProps> = ({ answer, originalQuestion, analysis }) => {
+const ResearchAnswer: React.FC<ResearchAnswerProps> = ({ answer, originalQuestion, analysis, evaluation }) => {
     return (
         <div className="space-y-8">
             {/* Question and Analysis Section */}
@@ -115,6 +116,93 @@ const ResearchAnswer: React.FC<ResearchAnswerProps> = ({ answer, originalQuestio
                         </ReactMarkdown>
                     </div>
 
+                    {/* Evaluation Section */}
+                    {evaluation && (
+                        <div className="mt-8 bg-gray-50 dark:bg-gray-900 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+                                Answer Evaluation
+                            </h3>
+                            
+                            {/* Scores */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                                    <div className="text-sm text-gray-600 dark:text-gray-400">Completeness</div>
+                                    <div className="text-2xl font-semibold text-blue-600 dark:text-blue-400">
+                                        {evaluation.completeness_score.toFixed(1)}%
+                                    </div>
+                                </div>
+                                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                                    <div className="text-sm text-gray-600 dark:text-gray-400">Accuracy</div>
+                                    <div className="text-2xl font-semibold text-blue-600 dark:text-blue-400">
+                                        {evaluation.accuracy_score.toFixed(1)}%
+                                    </div>
+                                </div>
+                                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                                    <div className="text-sm text-gray-600 dark:text-gray-400">Relevance</div>
+                                    <div className="text-2xl font-semibold text-blue-600 dark:text-blue-400">
+                                        {evaluation.relevance_score.toFixed(1)}%
+                                    </div>
+                                </div>
+                                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                                    <div className="text-sm text-gray-600 dark:text-gray-400">Overall</div>
+                                    <div className="text-2xl font-semibold text-blue-600 dark:text-blue-400">
+                                        {evaluation.overall_score.toFixed(1)}%
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Missing Aspects */}
+                            {evaluation.missing_aspects.length > 0 && (
+                                <div className="mb-6">
+                                    <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                                        Missing Aspects
+                                    </h4>
+                                    <ul className="list-disc pl-5 text-gray-600 dark:text-gray-400">
+                                        {evaluation.missing_aspects.map((aspect, index) => (
+                                            <li key={index}>{aspect}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {/* Improvement Suggestions */}
+                            {evaluation.improvement_suggestions.length > 0 && (
+                                <div className="mb-6">
+                                    <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                                        Improvement Suggestions
+                                    </h4>
+                                    <ul className="list-disc pl-5 text-gray-600 dark:text-gray-400">
+                                        {evaluation.improvement_suggestions.map((suggestion, index) => (
+                                            <li key={index}>{suggestion}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {/* Conflicting Aspects */}
+                            {evaluation.conflicting_aspects.length > 0 && (
+                                <div>
+                                    <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                                        Conflicting Aspects
+                                    </h4>
+                                    <div className="space-y-3">
+                                        {evaluation.conflicting_aspects.map((conflict, index) => (
+                                            <div key={index} className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
+                                                <div className="font-medium text-yellow-800 dark:text-yellow-200">
+                                                    {conflict.aspect}
+                                                </div>
+                                                <div className="text-yellow-700 dark:text-yellow-300 mt-1">
+                                                    {conflict.conflict}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Sources Section */}
                     <div className="mt-8 bg-gray-50 dark:bg-gray-900 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
                         <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
                             Sources Referenced
@@ -141,5 +229,4 @@ const ResearchAnswer: React.FC<ResearchAnswerProps> = ({ answer, originalQuestio
     );
 };
 
-export default ResearchAnswer; // Move from frontend/src/components/ResearchAnswer.tsx
-// ... existing ResearchAnswer component code ... 
+export default ResearchAnswer;

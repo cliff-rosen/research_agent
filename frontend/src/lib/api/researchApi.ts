@@ -17,6 +17,19 @@ export interface QuestionAnalysisResponse {
     conflicting_viewpoints: string[];
 }
 
+export interface ResearchEvaluation {
+    completeness_score: number;
+    accuracy_score: number;
+    relevance_score: number;
+    overall_score: number;
+    missing_aspects: string[];
+    improvement_suggestions: string[];
+    conflicting_aspects: Array<{
+        aspect: string;
+        conflict: string;
+    }>;
+}
+
 export interface ResearchAnswer {
     answer: string;
     sources_used: string[];
@@ -89,6 +102,23 @@ export const researchApi = {
     executeQueries: async (queries: string[]): Promise<SearchResult[]> => {
         try {
             const response = await api.post('/api/research/execute-queries', { queries });
+            return response.data;
+        } catch (error) {
+            throw handleApiError(error);
+        }
+    },
+
+    evaluateAnswer: async (
+        question: string,
+        analysis: QuestionAnalysisResponse,
+        answer: string
+    ): Promise<ResearchEvaluation> => {
+        try {
+            const response = await api.post('/api/research/evaluate-answer', {
+                question,
+                analysis,
+                answer
+            });
             return response.data;
         } catch (error) {
             throw handleApiError(error);
