@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { SearchResult } from '../../lib/api/researchApi';
 
 interface SourceSelectionProps {
@@ -16,6 +16,12 @@ const SourceSelection: React.FC<SourceSelectionProps> = ({
     onSelectAll,
     isLoading = false
 }) => {
+    const [sortedResults, setSortedResults] = useState<SearchResult[]>([]);
+
+    useEffect(() => {
+        setSortedResults([...searchResults].sort((a, b) => b.relevance_score - a.relevance_score));
+    }, [searchResults]);
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
@@ -45,7 +51,7 @@ const SourceSelection: React.FC<SourceSelectionProps> = ({
                 <span>{selectedSources.size} selected</span>
             </div>
             <div className="space-y-6">
-                {searchResults.map((result, index) => (
+                {sortedResults.map((result, index) => (
                     <div
                         key={index}
                         className={`bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden cursor-pointer transition-colors ${selectedSources.has(result)
