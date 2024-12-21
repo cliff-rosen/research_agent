@@ -1,11 +1,11 @@
+from typing import Generator
+import logging
+from models import Base
+from config.settings import settings
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import pymysql
 pymysql.install_as_MySQLdb()
-from config.settings import settings
-from models import Base
-import logging
-from typing import Generator
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +22,11 @@ engine = create_engine(
 # Create sessionmaker
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 def get_db() -> Generator:
     """
     FastAPI dependency that provides a database session
-    
+
     Yields:
         Session: SQLAlchemy database session
     """
@@ -35,10 +36,11 @@ def get_db() -> Generator:
     finally:
         db.close()
 
+
 def init_db():
     logger.info("Initializing database...")
     try:
-        Base.metadata.create_all(bind=engine) 
+        Base.metadata.create_all(bind=engine)
         logger.info("Database initialized successfully")
     except Exception as e:
         logger.error(f"Error initializing database: {e}")

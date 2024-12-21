@@ -7,6 +7,7 @@ from typing import Annotated
 
 router = APIRouter()
 
+
 @router.post(
     "/register",
     response_model=UserCreate,
@@ -19,6 +20,7 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
     - **password**: string
     """
     return await auth_service.create_user(db, user)
+
 
 @router.post(
     "/login",
@@ -51,7 +53,7 @@ async def login(
 
     - **username**: email address
     - **password**: user password
-    
+
     Returns:
     - **access_token**: JWT token to use for authentication
     - **token_type**: "bearer"
