@@ -1,4 +1,5 @@
 export { default as InitialQuestion } from './InitialQuestion';
+export { default as QuestionImprovement } from './QuestionImprovement';
 export { default as QuestionAnalysis } from './QuestionAnalysis';
 export { default as QuestionExpansion } from './QuestionExpansion';
 export { default as SourceSelection } from './SourceSelection';

@@ -3,6 +3,7 @@ import { researchApi, QuestionAnalysisResponse, SearchResult, ResearchAnswer as 
 import { searchApi, URLContent } from '../lib/api/searchApi';
 import {
     InitialQuestion,
+    QuestionImprovement,
     QuestionAnalysis,
     QuestionExpansion,
     SourceSelection,
@@ -44,6 +45,44 @@ const ResearchWorkflow: React.FC = () => {
     const [selectedQueries, setSelectedQueries] = useState<Set<string>>(new Set());
     const [selectedSourcesSet, setSelectedSourcesSet] = useState<Set<SearchResult>>(new Set());
 
+    const [improvedQuestion, setImprovedQuestion] = useState<QuestionImprovement | null>(null);
+    const [isUsingImprovedQuestion, setIsUsingImprovedQuestion] = useState(false);
+
+    // Step 1 handler: Submit initial question for improvement
+    const handleInitialSubmit = async (): Promise<void> => {
+        setIsLoading(true);
+        setError('');
+        setImprovedQuestion(null);
+
+        try {
+            const improvement = await researchApi.improveQuestion(question);
+            setImprovedQuestion(improvement);
+            handleNext();
+        } catch (err: unknown) {
+            console.error('Error improving question:', err);
+            setError('Failed to improve question. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Handle question editing
+    const handleQuestionEdit = (editedQuestion: string) => {
+        setQuestion(editedQuestion);
+        // Reset improvement state since we're using a custom edited version
+        setIsUsingImprovedQuestion(false);
+    };
+
+    // Step 2 handler: Proceed with question analysis
+    const handleImprovedQuestionSubmit = async (): Promise<void> => {
+        // Update the question if using improved version
+        if (isUsingImprovedQuestion && improvedQuestion) {
+            setQuestion(improvedQuestion.improved_question);
+        }
+        
+        // Proceed with question analysis
+        await handleQuestionSubmit();
+    };
 
     // Step 1 handler: Analyze the question
     const handleQuestionSubmit = async (): Promise<void> => {
@@ -361,8 +400,8 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         {
             label: 'Initial Question',
             description: 'Enter your research question with as much context as possible',
-            action: handleQuestionSubmit,
-            actionButtonText: () => 'Analyze Question',
+            action: handleInitialSubmit,
+            actionButtonText: () => 'Improve Question',
             isDisabled: () => !question.trim(),
             component: (props) => (
                 <InitialQuestion
@@ -370,6 +409,23 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                     question={question}
                     error={error}
                     onQuestionChange={setQuestion}
+                />
+            )
+        },
+        {
+            label: 'Question Improvement',
+            description: 'Review and approve suggested improvements to your question',
+            action: handleImprovedQuestionSubmit,
+            actionButtonText: () => 'Proceed with Analysis',
+            isDisabled: () => !improvedQuestion,
+            component: (props) => (
+                <QuestionImprovement
+                    {...props}
+                    improvement={improvedQuestion}
+                    isUsingImprovedQuestion={isUsingImprovedQuestion}
+                    onToggleUseImproved={setIsUsingImprovedQuestion}
+                    onQuestionEdit={handleQuestionEdit}
+                    originalQuestion={question}
                 />
             )
         },
