@@ -432,3 +432,50 @@ async def check_current_events(
         f"check_current_events endpoint called with question: {question}")
 
     return await research_service.check_current_events_context(question)
+
+
+@router.get(
+    "/improve-question",
+    summary="Analyze and improve a complex research question",
+    responses={
+        200: {
+            "description": "Question analysis and improvements generated successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "original_question": "How does AI impact society",
+                        "analysis": {
+                            "clarity_issues": ["'AI' is too broad", "'impact' needs specification"],
+                            "scope_issues": ["Question covers too many potential areas"],
+                            "precision_issues": ["Type of impact not specified"],
+                            "implicit_assumptions": ["Assumes uniform societal impact"],
+                            "missing_context": ["Timeframe not specified"],
+                            "structural_improvements": ["Break into specific aspects"]
+                        },
+                        "improved_question": "What are the primary economic and social impacts of machine learning technologies on employment and workforce skills in developed countries over the past decade?",
+                        "improvement_explanation": "Specified AI type, impact areas, context, and timeframe"
+                    }
+                }
+            }
+        },
+        401: {"description": "Not authenticated"}
+    }
+)
+async def improve_question(
+    question: str = Query(
+        description="The complex question to analyze and improve"
+    ),
+    current_user=Depends(auth_service.validate_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Analyze a complex question and suggest improvements for clarity, completeness, and effectiveness.
+
+    Parameters:
+    - **question**: The input question to analyze and improve
+
+    Returns a detailed analysis of the question including clarity issues, scope considerations,
+    implicit assumptions, and a suggested improved version of the question.
+    """
+    logger.info(f"improve_question endpoint called with question: {question}")
+    return await ai_service.improve_question(question)

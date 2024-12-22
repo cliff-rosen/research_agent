@@ -36,6 +36,20 @@ export interface CurrentEventsCheck {
     search_queries: string[];
 }
 
+export interface QuestionImprovement {
+    original_question: string;
+    analysis: {
+        clarity_issues: string[];
+        scope_issues: string[];
+        precision_issues: string[];
+        implicit_assumptions: string[];
+        missing_context: string[];
+        structural_improvements: string[];
+    };
+    improved_question: string;
+    improvement_explanation: string;
+}
+
 export type { SearchResult, StreamUpdate };
 
 export const researchApi = {
@@ -77,6 +91,14 @@ export const researchApi = {
         }
     },
 
+    improveQuestion: async (question: string): Promise<QuestionImprovement> => {
+        try {
+            const response = await api.get(`/api/research/improve-question?question=${encodeURIComponent(question)}`);
+            return response.data;
+        } catch (error) {
+            throw handleApiError(error);
+        }
+    },
 
     // Add utility functions for consistency
     handleError: handleApiError,

@@ -219,6 +219,31 @@ Example response:
 
 IMPORTANT: Return ONLY the JSON object. Do not include any explanatory text or markdown formatting."""
 
+IMPROVE_QUESTION_PROMPT = """You are an expert at analyzing and improving complex research questions. Your goal is to help make questions clearer, more complete, and more effective.
+
+Analyze the given question and provide suggestions for improvement in these key areas:
+- Clarity: Identify any ambiguous terms or concepts that need definition
+- Scope: Check if the scope is too broad or too narrow
+- Precision: Point out where more specific language could be used
+- Assumptions: Uncover implicit assumptions that should be made explicit
+- Context: Note any missing contextual information needed
+- Structure: Suggest better ways to structure or phrase the question
+
+Your response must be a valid JSON object with these exact keys:
+{
+    "original_question": "the original question text",
+    "analysis": {
+        "clarity_issues": ["list of unclear terms or concepts"],
+        "scope_issues": ["points about scope"],
+        "precision_issues": ["areas needing more precise language"],
+        "implicit_assumptions": ["assumptions that should be stated"],
+        "missing_context": ["required context that's absent"],
+        "structural_improvements": ["suggestions for better phrasing"]
+    },
+    "improved_question": "A rewritten version of the question incorporating all improvements",
+    "improvement_explanation": "A brief explanation of the key improvements made"
+}"""
+
 
 class AIService:
     def __init__(self):
@@ -837,6 +862,88 @@ Answer to Evaluate: {answer}
                     "aspect": "Evaluation Error",
                     "conflict": f"An error occurred during evaluation: {str(e)}"
                 }]
+            }
+
+    async def improve_question(self, question: str, model: Optional[str] = None) -> Dict:
+        """
+        Analyze a question and suggest improvements for clarity, completeness, and effectiveness.
+
+        Args:
+            question: The question to analyze and improve
+            model: Optional specific model to use
+
+        Returns:
+            Dict containing the analysis and improvements
+        """
+        try:
+            messages = [
+                {"role": "user", "content": f"Question: {question}"}
+            ]
+
+            content = await self.provider.create_chat_completion(
+                messages=messages,
+                system=IMPROVE_QUESTION_PROMPT,
+                model=model or FAST_MODEL
+            )
+
+            try:
+                # Clean the response string
+                response_text = content.strip()
+                if response_text.startswith('```json'):
+                    response_text = response_text.split('```')[1].strip()
+                elif response_text.startswith('```'):
+                    response_text = response_text.split('```')[1].strip()
+
+                # Parse JSON response
+                import json
+                result = json.loads(response_text)
+
+                # Validate the response has all required fields
+                required_fields = ['original_question', 'analysis',
+                                   'improved_question', 'improvement_explanation']
+                if not all(field in result for field in required_fields):
+                    raise ValueError("Missing required fields in response")
+
+                # Validate analysis subfields
+                analysis_fields = ['clarity_issues', 'scope_issues', 'precision_issues',
+                                   'implicit_assumptions', 'missing_context', 'structural_improvements']
+                if not all(field in result['analysis'] for field in analysis_fields):
+                    raise ValueError(
+                        "Missing required analysis fields in response")
+
+                return result
+
+            except json.JSONDecodeError as e:
+                logger.error(
+                    f"Error parsing improve question JSON response: {str(e)}\nResponse: {content}")
+                return {
+                    "original_question": question,
+                    "analysis": {
+                        "clarity_issues": ["Error analyzing question"],
+                        "scope_issues": [],
+                        "precision_issues": [],
+                        "implicit_assumptions": [],
+                        "missing_context": [],
+                        "structural_improvements": []
+                    },
+                    "improved_question": question,
+                    "improvement_explanation": "An error occurred during analysis"
+                }
+
+        except Exception as e:
+            logger.error(f"Error in improve_question: {str(e)}")
+            return {
+                "original_question": question,
+                "analysis": {
+                    "clarity_issues": ["Error analyzing question"],
+                    "scope_issues": [],
+                    "precision_issues": [],
+                    "implicit_assumptions": [],
+                    "missing_context": [],
+                    "structural_improvements": []
+                },
+                "improved_question": question,
+                "improvement_explanation": f"An error occurred: {str(e)}"
             }
 
 
