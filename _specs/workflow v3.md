@@ -8,7 +8,7 @@
 
 2. Question Enhancement
   - Input: Original question, enhanced question
-  - Process: abaktzeQuestionStream
+  - Process: analyzeQuestionStream
   - Output: Final question to use
 
 3. Question Validation
@@ -28,17 +28,17 @@
 ## B. Knowledge Gathering
 1. Query Expansion
   - Input: Question components
-  - Process: execyteQuerisStream
+  - Process: executeQueriesStream
   - Output: Query set per component
   - Note: Generate N queries per component
 
-2. Source Selection
+2. Source Retrieval
   - Input: Query sets
   - Process: fetchUrls
   - Output: Document set per component
   - Note: Cross-check with analysis for coverage
 
-3. Source Analysis
+3. Source Knowledge Extraction
   - Input: Document sets
   - Process: buildKBFromSources
   - Output: Extracted knowledge per component
@@ -51,7 +51,7 @@
   - Note: If insufficient, return to B1
 
 ## C. Answer Generation
-1. Research Answer
+1. Generate Answer
   - Input: Question, KB
   - Output: Final answer meeting component requirements
 
