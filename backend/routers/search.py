@@ -18,7 +18,10 @@ router = APIRouter()
     response_model=List[URLContent],
     summary="Fetch and extract content from multiple URLs in parallel"
 )
-async def fetch_urls(request: FetchURLsRequest) -> List[URLContent]:
+async def fetch_urls(request: FetchURLsRequest,
+                     current_user=Depends(auth_service.validate_token),
+                     db: Session = Depends(get_db)
+                     ) -> List[URLContent]:
     """
     Fetch and extract content from multiple URLs in parallel.
 
@@ -42,8 +45,6 @@ async def fetch_urls(request: FetchURLsRequest) -> List[URLContent]:
             detail=str(e)
         )
 
-
-### Unused
 
 @router.get(
     "/search",
@@ -101,7 +102,10 @@ async def search(
     response_model=URLContent,
     summary="Fetch and extract content from a given URL"
 )
-async def fetch_url(url: str = Query(..., description="URL to fetch content from")) -> URLContent:
+async def fetch_url(url: str = Query(..., description="URL to fetch content from"),
+                   current_user=Depends(auth_service.validate_token),
+                   db: Session = Depends(get_db)
+                   ) -> URLContent:
     """
     Fetch and extract content from a given URL.
 

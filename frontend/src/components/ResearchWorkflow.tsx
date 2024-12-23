@@ -73,18 +73,18 @@ const ResearchWorkflow: React.FC = () => {
         setIsUsingImprovedQuestion(false);
     };
 
-    // Step 2 handler: Proceed with question analysis
+    // Step 2 handler: Improve the question
     const handleImprovedQuestionSubmit = async (): Promise<void> => {
         // Update the question if using improved version
         if (isUsingImprovedQuestion && improvedQuestion) {
             setQuestion(improvedQuestion.improved_question);
         }
-        
+
         // Proceed with question analysis
         await handleQuestionSubmit();
     };
 
-    // Step 1 handler: Analyze the question
+    // Step 2a handler: Analyze the question
     const handleQuestionSubmit = async (): Promise<void> => {
         setIsLoading(true);
         setError('');
@@ -150,7 +150,7 @@ const ResearchWorkflow: React.FC = () => {
         }
     };
 
-    // Step 2 handler: Expand the question
+    // Step 3 handler: Expand the question
     const handleQueryExpansion = async (): Promise<void> => {
         if (!analysis) return;
 
@@ -209,7 +209,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         }
     };
 
-    // Step 3: Execute the queries
+    // Step 4: Execute the queries
     const handleSubmitQueries = async (queries: string[]): Promise<void> => {
         try {
             setIsLoading(true);
@@ -267,7 +267,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         }
     };
 
-    // Step 4 handler: Select sources
+    // Step 5: Select sources
     const handleSourceSelection = async (_selected: SearchResult[]): Promise<void> => {
         try {
             setIsLoading(true);
@@ -289,7 +289,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         }
     };
 
-    // Step 5 handler: Analyze the sources
+    // Step 6: Analyze the sources
     const handleAnalysisProceed = async () => {
         try {
             setIsLoading(true);

@@ -54,6 +54,15 @@ export type { SearchResult, StreamUpdate };
 
 export const researchApi = {
 
+    improveQuestion: async (question: string): Promise<QuestionImprovement> => {
+        try {
+            const response = await api.get(`/api/research/improve-question?question=${encodeURIComponent(question)}`);
+            return response.data;
+        } catch (error) {
+            throw handleApiError(error);
+        }
+    },
+
     analyzeQuestionStream: async function* (question: string): AsyncGenerator<StreamUpdate> {
         yield* makeStreamRequest('/api/research/analyze-question/stream', { question });
     },
@@ -91,14 +100,6 @@ export const researchApi = {
         }
     },
 
-    improveQuestion: async (question: string): Promise<QuestionImprovement> => {
-        try {
-            const response = await api.get(`/api/research/improve-question?question=${encodeURIComponent(question)}`);
-            return response.data;
-        } catch (error) {
-            throw handleApiError(error);
-        }
-    },
 
     // Add utility functions for consistency
     handleError: handleApiError,
