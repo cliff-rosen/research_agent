@@ -7,7 +7,7 @@ import { setSessionExpiredHandler } from './lib/api'
 import { setStreamSessionExpiredHandler } from './lib/api/streamUtils'
 import LoginForm from './components/auth/LoginForm'
 import ResearchWorkflow from './components/ResearchWorkflow'
-import MockWorkflow from './components/MockWorkflow'
+import LabWorkflow from './components/LabWorkflow'
 
 // Define available workflows
 const WORKFLOWS = [
@@ -21,14 +21,14 @@ const WORKFLOWS = [
     id: 'mock',
     name: 'Text Processor',
     description: 'A simple two-step workflow that processes text input',
-    component: MockWorkflow
+    component: LabWorkflow
   }
 ] as const
 
 function App() {
   const { handleSessionExpired, isAuthenticated, login, register, error } = useAuth()
   const [isRegistering, setIsRegistering] = useState(false)
-  const [selectedWorkflow, setSelectedWorkflow] = useState(WORKFLOWS[0].id)
+  const [selectedWorkflow, setSelectedWorkflow] = useState<typeof WORKFLOWS[number]['id']>(WORKFLOWS[0].id)
 
   useEffect(() => {
     setSessionExpiredHandler(handleSessionExpired)
@@ -62,18 +62,16 @@ function App() {
       <ThemeProvider>
         <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900">
           <TopBar />
-          <div className="container mx-auto px-4 py-6">
-            <div className="mb-6">
-              <label htmlFor="workflow-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Select Workflow
-              </label>
+          <div className="relative">
+            {/* Workflow Selector - positioned in top-right */}
+            <div className="absolute right-4 top-4 flex items-center gap-2">
               <select
                 id="workflow-select"
                 value={selectedWorkflow}
-                onChange={(e) => setSelectedWorkflow(e.target.value)}
-                className="block w-full max-w-xs rounded-md border border-gray-300 dark:border-gray-600 py-2 px-3 
+                onChange={(e) => setSelectedWorkflow(e.target.value as typeof selectedWorkflow)}
+                className="text-sm rounded-md border border-gray-300 dark:border-gray-600 py-1 px-2 
                           bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 
-                          focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 {WORKFLOWS.map(workflow => (
                   <option key={workflow.id} value={workflow.id}>
@@ -81,12 +79,29 @@ function App() {
                   </option>
                 ))}
               </select>
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                {WORKFLOWS.find(w => w.id === selectedWorkflow)?.description}
-              </p>
+              <div className="group relative">
+                <button
+                  className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                  aria-label="Workflow info"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
+                <div className="invisible group-hover:visible absolute right-0 mt-2 w-64 p-2 text-sm 
+                              bg-white dark:bg-gray-800 rounded-md shadow-lg 
+                              border border-gray-200 dark:border-gray-700
+                              text-gray-600 dark:text-gray-300">
+                  {WORKFLOWS.find(w => w.id === selectedWorkflow)?.description}
+                </div>
+              </div>
             </div>
-            <div className="flex-1">
-              <WorkflowComponent />
+
+            {/* Main Content */}
+            <div className="container mx-auto px-4 py-6">
+              <div className="flex-1">
+                <WorkflowComponent />
+              </div>
             </div>
           </div>
         </div>
