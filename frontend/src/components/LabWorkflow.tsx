@@ -77,7 +77,7 @@ export default function LabWorkflow() {
               <div key={index} className="border-b dark:border-gray-700 pb-4 last:border-0">
                 <h3 className="text-lg font-medium mb-2">
                   <a 
-                    href={result.url}
+                    href={result.link}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 dark:text-blue-400 hover:underline"

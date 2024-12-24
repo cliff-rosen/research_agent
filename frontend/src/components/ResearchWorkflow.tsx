@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { researchApi, QuestionAnalysisResponse, SearchResult, ResearchAnswer as ResearchAnswerType, ResearchEvaluation } from '../lib/api/researchApi';
+import { researchApi, QuestionAnalysisResponse, SearchResult, ResearchAnswer as ResearchAnswerType, ResearchEvaluation, QuestionImprovement as QuestionImprovementType } from '../lib/api/researchApi';
 import { searchApi, URLContent } from '../lib/api/searchApi';
 import {
     InitialQuestion,
@@ -45,7 +45,7 @@ const ResearchWorkflow: React.FC = () => {
     const [selectedQueries, setSelectedQueries] = useState<Set<string>>(new Set());
     const [selectedSourcesSet, setSelectedSourcesSet] = useState<Set<SearchResult>>(new Set());
 
-    const [improvedQuestion, setImprovedQuestion] = useState<QuestionImprovement | null>(null);
+    const [improvedQuestion, setImprovedQuestion] = useState<QuestionImprovementType | null>(null);
     const [isUsingImprovedQuestion, setIsUsingImprovedQuestion] = useState(false);
 
     // Step 1 handler: Submit initial question for improvement
