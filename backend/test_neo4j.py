@@ -1,9 +1,10 @@
 import asyncio
 import logging
 from neo4j import AsyncGraphDatabase
+from services.neo4j_service import neo4j_service
 from config.settings import settings
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -27,9 +28,9 @@ async def test_connection():
 
         # Try a simple query
         async with driver.session(database=settings.NEO4J_DATABASE) as session:
-            result = await session.run("RETURN 1 as num")
+            result = await session.run("Match (n:PERSON) return n.name")
             record = await result.single()
-            logger.info(f"Test query result: {record['num']}")
+            logger.info(f"Test query result: {record}")
 
     except Exception as e:
         logger.error(f"Connection failed: {str(e)}", exc_info=True)
@@ -37,5 +38,11 @@ async def test_connection():
         if driver:
             await driver.close()
 
-if __name__ == "__main__":
-    asyncio.run(test_connection())
+# asyncio.run(test_connection())
+# create async function
+async def test_neo4j_service():
+    query = "MATCH (p:PERSON) RETURN p"
+    result = await neo4j_service.execute_query(query)
+    print(result)
+
+asyncio.run(test_neo4j_service())

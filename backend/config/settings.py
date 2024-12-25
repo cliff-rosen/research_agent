@@ -47,7 +47,7 @@ class Settings(BaseSettings):
 
     # Neo4j Settings
     NEO4J_URI: str = os.getenv(
-        "NEO4J_URI", "neo4j://801e8074.databases.neo4j.io")
+        "NEO4J_URI", "neo4j+s://801e8074.databases.neo4j.io")
     NEO4J_API_KEY: str = os.getenv("NEO4J_API_KEY", "")
     NEO4J_DATABASE: str = os.getenv("NEO4J_DATABASE", "neo4j")
 
