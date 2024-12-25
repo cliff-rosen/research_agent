@@ -1,5 +1,16 @@
 import React, { useState } from 'react';
 import { researchApi, KnowledgeGraphElements } from '../lib/api/researchApi';
+import ReactFlow, {
+  Node,
+  Edge,
+  Controls,
+  Background,
+  useNodesState,
+  useEdgesState,
+  Position,
+  MarkerType
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 
 interface WorkflowStep {
   label: string;
@@ -44,60 +55,101 @@ const SourceInput: React.FC<{
 const KnowledgeGraphDisplay: React.FC<{
   graphElements: KnowledgeGraphElements;
 }> = ({ graphElements }) => {
-  return (
-    <div className="space-y-6">
-      {/* Nodes Section */}
-      <div>
-        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-3">
-          Nodes ({graphElements.nodes.length})
-        </h3>
-        <div className="space-y-3">
-          {graphElements.nodes.map((node) => (
-            <div key={node.id} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="font-medium text-gray-700 dark:text-gray-200">{node.label}</span>
-                <span className="text-sm text-gray-500 dark:text-gray-400">({node.id})</span>
+  // Convert nodes to ReactFlow format
+  const initialNodes: Node[] = graphElements.nodes.map((node) => ({
+    id: node.id,
+    data: {
+      label: (
+        <div className="p-2 bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="font-medium text-gray-900 dark:text-gray-100">{node.label}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-300">
+            {Object.entries(node.properties).map(([key, value]) => (
+              <div key={key} className="truncate">
+                {key}: {value}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-300">
-                {Object.entries(node.properties).map(([key, value]) => (
-                  <div key={key}>
-                    <span className="font-medium">{key}:</span> {value}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )
+    },
+    position: { x: 0, y: 0 },
+    type: 'default',
+    style: {
+      background: 'transparent',
+      border: 'none',
+    },
+  }));
 
-      {/* Relationships Section */}
-      <div>
-        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-3">
-          Relationships ({graphElements.relationships.length})
-        </h3>
-        <div className="space-y-3">
-          {graphElements.relationships.map((rel, index) => (
-            <div key={index} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="font-medium text-gray-700 dark:text-gray-200">{rel.type}</span>
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-300">
-                <div>
-                  <span className="font-medium">From:</span> {rel.source}
-                </div>
-                <div>
-                  <span className="font-medium">To:</span> {rel.target}
-                </div>
-                {Object.entries(rel.properties).map(([key, value]) => (
-                  <div key={key}>
-                    <span className="font-medium">{key}:</span> {value}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+  // Convert relationships to ReactFlow edges with enhanced styling
+  const initialEdges: Edge[] = graphElements.relationships.map((rel, index) => ({
+    id: `e${index}`,
+    source: rel.source,
+    target: rel.target,
+    label: rel.type,
+    type: 'smoothstep',
+    animated: true,
+    labelStyle: {
+      fill: 'currentColor',
+      fontWeight: 500,
+      fontSize: '12px',
+    },
+    labelBgStyle: {
+      fill: '#ffffff',
+      fillOpacity: 0.8,
+      rx: 4,
+      className: 'dark:fill-gray-800',
+    },
+    labelBgPadding: [8, 4],
+    style: {
+      stroke: '#64748b',
+      strokeWidth: 2,
+    },
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      color: '#64748b',
+    },
+  }));
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  // Auto-arrange nodes in a circle
+  React.useEffect(() => {
+    const radius = Math.max(300, nodes.length * 50);
+    const centerX = 400;
+    const centerY = 300;
+
+    const arrangedNodes = nodes.map((node, index) => {
+      const angle = (index * 2 * Math.PI) / nodes.length;
+      return {
+        ...node,
+        position: {
+          x: centerX + radius * Math.cos(angle),
+          y: centerY + radius * Math.sin(angle),
+        },
+      };
+    });
+
+    setNodes(arrangedNodes);
+  }, [graphElements]);
+
+  return (
+    <div className="h-[600px] w-full border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        fitView
+        attributionPosition="bottom-right"
+        defaultEdgeOptions={{
+          type: 'smoothstep',
+          animated: true,
+        }}
+      >
+        <Background color="#64748b" />
+        <Controls />
+      </ReactFlow>
     </div>
   );
 };
