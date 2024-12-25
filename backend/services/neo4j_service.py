@@ -2,6 +2,7 @@ from neo4j import AsyncGraphDatabase
 from typing import List, Dict, Any, Optional
 import logging
 from config.settings import settings
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -149,9 +150,98 @@ class Neo4jService:
             logger.error(f"Error retrieving research history: {str(e)}")
             raise
 
+    async def store_knowledge_graph_elements(self, elements: Dict[str, List[Dict[str, Any]]]) -> None:
+        """
+        Store extracted knowledge graph elements (nodes and relationships) in Neo4j.
+
+        Args:
+            elements (Dict[str, List[Dict[str, Any]]]): Dictionary containing nodes and relationships
+                Format:
+                {
+                    "nodes": [{"id": str, "label": str, "properties": Dict}],
+                    "relationships": [{"source": str, "target": str, "type": str, "properties": Dict}]
+                }
+        """
+        if not elements.get('nodes') and not elements.get('relationships'):
+            logger.warning("No knowledge graph elements to store")
+            return
+
+        try:
+            # First create all nodes
+            # Escape special characters in labels and handle properties safely
+            nodes = []
+            for node in elements.get('nodes', []):
+                # Escape backticks in label
+                label = node['label'].replace('`', '``')
+                # Create a safe copy of properties
+                safe_props = {
+                    k: str(v) if isinstance(v, (str, int, float, bool)) else json.dumps(v)
+                    for k, v in node['properties'].items()
+                }
+                nodes.append({
+                    'id': node['id'],
+                    'label': label,
+                    'properties': safe_props
+                })
+
+            # Create nodes one at a time to handle dynamic labels
+            for node in nodes:
+                node_query = f"""
+                MERGE (n:`{node['label']}` {{id: $id}})
+                SET n += $properties
+                """
+                
+                await self.execute_query(node_query, {
+                    "id": node['id'],
+                    "properties": node['properties']
+                })
+            
+            if nodes:
+                logger.info(f"Successfully created {len(nodes)} nodes")
+
+            # Then create all relationships
+            # Handle relationship types and properties safely
+            relationships = []
+            for rel in elements.get('relationships', []):
+                # Escape special characters in relationship type
+                rel_type = rel['type'].replace('`', '``')
+                # Create a safe copy of properties
+                safe_props = {
+                    k: str(v) if isinstance(v, (str, int, float, bool)) else json.dumps(v)
+                    for k, v in rel['properties'].items()
+                }
+                relationships.append({
+                    'source': rel['source'],
+                    'target': rel['target'],
+                    'type': rel_type,
+                    'properties': safe_props
+                })
+
+            # Create relationships one at a time to handle dynamic relationship types
+            for rel in relationships:
+                rel_query = f"""
+                MATCH (source {{id: $source}})
+                MATCH (target {{id: $target}})
+                MERGE (source)-[r:`{rel['type']}`]->(target)
+                SET r += $properties
+                """
+                
+                await self.execute_query(rel_query, {
+                    "source": rel['source'],
+                    "target": rel['target'],
+                    "properties": rel['properties']
+                })
+            
+            if relationships:
+                logger.info(f"Successfully created {len(relationships)} relationships")
+
+        except Exception as e:
+            logger.error(f"Error storing knowledge graph elements: {str(e)}")
+            raise
+
 
 # Create a singleton instance
 neo4j_service = Neo4jService()
 
-# Export the singleton instance
+# Export only the singleton instance
 __all__ = ['neo4j_service']

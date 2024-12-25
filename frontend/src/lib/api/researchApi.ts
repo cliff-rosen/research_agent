@@ -50,6 +50,20 @@ export interface QuestionImprovement {
     improvement_explanation: string;
 }
 
+export interface KnowledgeGraphElements {
+    nodes: Array<{
+        id: string;
+        label: string;
+        properties: Record<string, any>;
+    }>;
+    relationships: Array<{
+        source: string;
+        target: string;
+        type: string;
+        properties: Record<string, any>;
+    }>;
+}
+
 export type { SearchResult, StreamUpdate };
 
 export const researchApi = {
@@ -143,6 +157,17 @@ export const researchApi = {
                 question,
                 analysis,
                 answer
+            });
+            return response.data;
+        } catch (error) {
+            throw handleApiError(error);
+        }
+    },
+
+    extractKnowledgeGraph: async (document: string): Promise<KnowledgeGraphElements> => {
+        try {
+            const response = await api.post('/api/research/extract-knowledge-graph', {
+                document: document.trim()
             });
             return response.data;
         } catch (error) {

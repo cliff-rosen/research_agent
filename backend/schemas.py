@@ -198,3 +198,41 @@ class ResearchAnswer(BaseModel):
     )
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ExtractKnowledgeGraphRequest(BaseModel):
+    """Request model for extracting knowledge graph elements from a document."""
+    document: str = Field(
+        ..., 
+        description="The text document to analyze for entities and relationships",
+        examples=["John's company 'Tech Corp' leads the industry. The CEO manages operations."]
+    )
+
+
+class KnowledgeGraphNode(BaseModel):
+    """Model representing a node in the knowledge graph."""
+    id: str = Field(..., description="Unique identifier for the node")
+    label: str = Field(..., description="Type/label of the node (e.g., Person, Company)")
+    properties: Dict[str, Any] = Field(
+        ..., 
+        description="Properties/attributes of the node",
+        examples=[{"name": "John Smith", "role": "CEO"}]
+    )
+
+
+class KnowledgeGraphRelationship(BaseModel):
+    """Model representing a relationship in the knowledge graph."""
+    source: str = Field(..., description="ID of the source node")
+    target: str = Field(..., description="ID of the target node")
+    type: str = Field(..., description="Type of relationship (e.g., LEADS, MANAGES)")
+    properties: Dict[str, Any] = Field(
+        ..., 
+        description="Properties/attributes of the relationship",
+        examples=[{"since": "2020"}]
+    )
+
+
+class KnowledgeGraphElements(BaseModel):
+    """Model representing the complete set of knowledge graph elements."""
+    nodes: List[KnowledgeGraphNode]
+    relationships: List[KnowledgeGraphRelationship]

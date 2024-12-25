@@ -1,12 +1,16 @@
-from fastapi import APIRouter, Depends, Query, Body, Response
+from fastapi import APIRouter, Depends, Query, Body, Response, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Dict, TypedDict
 from pydantic import BaseModel, Field
 from database import get_db
-from services import auth_service, ai_service
-from services.research_service import research_service
-from schemas import SearchResult, ResearchAnswer, URLContent, QuestionAnalysis, ExecuteQueriesRequest, GetResearchAnswerRequest, CurrentEventsCheck, ResearchEvaluation, EvaluateAnswerRequest
+from services import auth_service, research_service, ai_service, neo4j_service
+from schemas import (
+    SearchResult, ResearchAnswer, URLContent, QuestionAnalysis, 
+    ExecuteQueriesRequest, GetResearchAnswerRequest, CurrentEventsCheck, 
+    ResearchEvaluation, EvaluateAnswerRequest, ExtractKnowledgeGraphRequest,
+    KnowledgeGraphElements
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -479,3 +483,77 @@ async def improve_question(
     """
     logger.info(f"improve_question endpoint called with question: {question}")
     return await ai_service.improve_question(question)
+
+
+@router.post(
+    "/extract-knowledge-graph",
+    summary="Extract and store knowledge graph elements from a document",
+    response_model=KnowledgeGraphElements,
+    responses={
+        200: {
+            "description": "Knowledge graph elements successfully extracted and stored",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "nodes": [
+                            {
+                                "id": "p1",
+                                "label": "Person",
+                                "properties": {
+                                    "name": "John Smith",
+                                    "role": "CEO"
+                                }
+                            }
+                        ],
+                        "relationships": [
+                            {
+                                "source": "p1",
+                                "target": "c1",
+                                "type": "LEADS",
+                                "properties": {
+                                    "since": "2020"
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        401: {"description": "Not authenticated"},
+        500: {"description": "Internal server error"}
+    }
+)
+async def extract_knowledge_graph(
+    request: ExtractKnowledgeGraphRequest,
+    current_user=Depends(auth_service.validate_token),
+    db: Session = Depends(get_db)
+) -> KnowledgeGraphElements:
+    """
+    Extract knowledge graph elements from a document and store them in Neo4j.
+
+    Parameters:
+    - **document**: The text document to analyze for entities and relationships
+
+    Returns the extracted knowledge graph elements that were stored.
+    """
+    logger.info("extract_knowledge_graph endpoint called")
+
+    try:
+        # Extract knowledge graph elements using AI service
+        elements = await ai_service.extract_knowledge_graph_elements(request.document)
+        
+        # Ensure Neo4j connection
+        if not neo4j_service.driver:
+            await neo4j_service.connect()
+            
+        # Store elements in Neo4j
+        await neo4j_service.store_knowledge_graph_elements(elements)
+        
+        # Convert to Pydantic model for validation and response
+        return KnowledgeGraphElements(**elements)
+    except Exception as e:
+        logger.error(f"Error in extract_knowledge_graph: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to process knowledge graph: {str(e)}"
+        )

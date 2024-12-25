@@ -244,6 +244,76 @@ Your response must be a valid JSON object with these exact keys:
     "improvement_explanation": "A brief explanation of the key improvements made"
 }"""
 
+EXTRACT_KNOWLEDGE_GRAPH_PROMPT = '''You are an expert at extracting structured knowledge from text to build knowledge graphs.
+
+Analyze the given text and identify key entities (nodes) and their relationships (edges) to create a knowledge graph.
+
+Guidelines for extraction:
+- Focus on meaningful entities and relationships that capture key information
+- Use consistent naming for similar types of entities
+- Capture directional relationships where relevant
+- Include relevant properties for both nodes and relationships
+- Avoid overly generic or uninformative relationships
+- Ensure relationship types are specific and meaningful
+
+Return a JSON object with this structure:
+{
+    "nodes": [
+        {
+            "id": "unique_id",
+            "label": "entity_type",
+            "properties": {
+                "name": "entity_name",
+                "additional_properties": "values"
+            }
+        }
+    ],
+    "relationships": [
+        {
+            "source": "source_node_id",
+            "target": "target_node_id",
+            "type": "relationship_type",
+            "properties": {
+                "additional_properties": "values"
+            }
+        }
+    ]
+}
+
+Example response:
+{
+    "nodes": [
+        {
+            "id": "p1",
+            "label": "Person",
+            "properties": {
+                "name": "John Smith",
+                "role": "CEO"
+            }
+        },
+        {
+            "id": "c1",
+            "label": "Company",
+            "properties": {
+                "name": "Tech Corp",
+                "industry": "Technology"
+            }
+        }
+    ],
+    "relationships": [
+        {
+            "source": "p1",
+            "target": "c1",
+            "type": "LEADS",
+            "properties": {
+                "since": "2020"
+            }
+        }
+    ]
+}
+
+IMPORTANT: Return ONLY the JSON object. Do not include any explanatory text or markdown formatting.'''
+
 
 class AIService:
     def __init__(self):
@@ -944,6 +1014,80 @@ Answer to Evaluate: {answer}
                 },
                 "improved_question": question,
                 "improvement_explanation": f"An error occurred: {str(e)}"
+            }
+
+    async def extract_knowledge_graph_elements(self, document: str, model: Optional[str] = None) -> Dict:
+        """
+        Extract nodes and relationships from a document to populate a knowledge graph.
+
+        Args:
+            document (str): The text document to analyze
+            model (Optional[str]): Optional specific model to use
+
+        Returns:
+            Dict containing nodes and relationships in the format:
+            {
+                "nodes": [{"id": str, "label": str, "properties": Dict}],
+                "relationships": [{"source": str, "target": str, "type": str, "properties": Dict}]
+            }
+        """
+        try:
+            messages = [
+                {"role": "user", "content": f"Extract knowledge graph elements from this text:\n\n{document}"}
+            ]
+
+            content = await self.provider.create_chat_completion(
+                messages=messages,
+                system=EXTRACT_KNOWLEDGE_GRAPH_PROMPT,
+                model=model or FAST_MODEL
+            )
+
+            try:
+                # Clean the response string
+                response_text = content.strip()
+                if response_text.startswith('```json'):
+                    response_text = response_text.split('```')[1].strip()
+                elif response_text.startswith('```'):
+                    response_text = response_text.split('```')[1].strip()
+
+                # Parse JSON response
+                import json
+                result = json.loads(response_text)
+
+                # Validate the response has required fields
+                if not isinstance(result.get('nodes'), list):
+                    raise ValueError("Missing or invalid 'nodes' field in response")
+                if not isinstance(result.get('relationships'), list):
+                    raise ValueError("Missing or invalid 'relationships' field in response")
+
+                # Validate each node has required fields
+                for node in result['nodes']:
+                    if not all(k in node for k in ['id', 'label', 'properties']):
+                        raise ValueError("Node missing required fields")
+                    if not isinstance(node['properties'], dict):
+                        raise ValueError("Node properties must be a dictionary")
+
+                # Validate each relationship has required fields
+                for rel in result['relationships']:
+                    if not all(k in rel for k in ['source', 'target', 'type', 'properties']):
+                        raise ValueError("Relationship missing required fields")
+                    if not isinstance(rel['properties'], dict):
+                        raise ValueError("Relationship properties must be a dictionary")
+
+                return result
+
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parsing knowledge graph JSON response: {str(e)}\nResponse: {content}")
+                return {
+                    "nodes": [],
+                    "relationships": []
+                }
+
+        except Exception as e:
+            logger.error(f"Error in extract_knowledge_graph_elements: {str(e)}")
+            return {
+                "nodes": [],
+                "relationships": []
             }
 
 
