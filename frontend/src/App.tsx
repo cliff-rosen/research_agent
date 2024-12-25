@@ -8,20 +8,33 @@ import { setStreamSessionExpiredHandler } from './lib/api/streamUtils'
 import LoginForm from './components/auth/LoginForm'
 import ResearchWorkflow from './components/ResearchWorkflow'
 import LabWorkflow from './components/LabWorkflow'
+import KbWorkflow from './components/KbWorkflow'
 
 // Define available workflows
 const WORKFLOWS = [
   {
-    id: 'research',
-    name: 'Research Assistant',
-    description: 'AI-powered research workflow to analyze questions and find comprehensive answers',
-    component: ResearchWorkflow
+    id: 'lab',
+    name: 'Template Workflow  ',
+    description: 'A template workflow for creating new workflows',
+    path: '/lab',
+    component: LabWorkflow,
+    landingComponent: LabWorkflow
   },
   {
-    id: 'mock',
-    name: 'Text Processor',
-    description: 'A simple two-step workflow that processes text input',
-    component: LabWorkflow
+    id: 'research',
+    name: 'Research Assistant',
+    description: 'AI-powered research workflow to analyze questions and find answers',
+    path: '/research',
+    component: ResearchWorkflow,
+    landingComponent: ResearchWorkflow
+  },
+  {
+    id: 'kb',
+    name: 'Knowledge Base',
+    description: 'Build and manage a knowledge graph database',
+    path: '/kb',
+    component: KbWorkflow,
+    landingComponent: KbWorkflow
   }
 ] as const
 

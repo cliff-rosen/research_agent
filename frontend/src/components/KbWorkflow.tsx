@@ -1,5 +1,16 @@
 import React, { useState } from 'react';
 import { researchApi, KnowledgeGraphElements } from '../lib/api/researchApi';
+import ReactFlow, {
+  Node,
+  Edge,
+  Controls,
+  Background,
+  useNodesState,
+  useEdgesState,
+  Position,
+  MarkerType
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 
 interface WorkflowStep {
   label: string;
@@ -10,17 +21,156 @@ interface WorkflowStep {
   isDisabled?: (state?: any) => boolean;
 }
 
-const LabWorkflow: React.FC = () => {
+// Step 1: Source Input Component
+const SourceInput: React.FC<{
+  source: string;
+  error: string;
+  onSourceChange: (source: string) => void;
+}> = ({ source, error, onSourceChange }) => {
+  return (
+    <div className="space-y-4">
+      <div>
+        <label htmlFor="source" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Source Text
+        </label>
+        <textarea
+          id="source"
+          rows={15}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          placeholder="Paste your source text here..."
+          value={source}
+          onChange={(e) => onSourceChange(e.target.value)}
+        />
+      </div>
+      {error && (
+        <div className="text-red-500 text-sm">
+          {error}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Step 2: Knowledge Graph Display Component
+const KnowledgeGraphDisplay: React.FC<{
+  graphElements: KnowledgeGraphElements;
+}> = ({ graphElements }) => {
+  // Convert nodes to ReactFlow format
+  const initialNodes: Node[] = graphElements.nodes.map((node) => ({
+    id: node.id,
+    data: {
+      label: (
+        <div className="p-2 bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="font-medium text-gray-900 dark:text-gray-100">{node.label}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-300">
+            {Object.entries(node.properties).map(([key, value]) => (
+              <div key={key} className="truncate">
+                {key}: {value}
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    },
+    position: { x: 0, y: 0 },
+    type: 'default',
+    style: {
+      background: 'transparent',
+      border: 'none',
+    },
+  }));
+
+  // Convert relationships to ReactFlow edges with enhanced styling
+  const initialEdges: Edge[] = graphElements.relationships.map((rel, index) => ({
+    id: `e${index}`,
+    source: rel.source,
+    target: rel.target,
+    label: rel.type,
+    type: 'smoothstep',
+    animated: true,
+    labelStyle: {
+      fill: 'currentColor',
+      fontWeight: 500,
+      fontSize: '12px',
+    },
+    labelBgStyle: {
+      fill: '#ffffff',
+      fillOpacity: 0.8,
+      rx: 4,
+      className: 'dark:fill-gray-800',
+    },
+    labelBgPadding: [8, 4],
+    style: {
+      stroke: '#64748b',
+      strokeWidth: 2,
+    },
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      color: '#64748b',
+    },
+  }));
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  // Auto-arrange nodes in a circle
+  React.useEffect(() => {
+    const radius = Math.max(300, nodes.length * 50);
+    const centerX = 400;
+    const centerY = 300;
+
+    const arrangedNodes = nodes.map((node, index) => {
+      const angle = (index * 2 * Math.PI) / nodes.length;
+      return {
+        ...node,
+        position: {
+          x: centerX + radius * Math.cos(angle),
+          y: centerY + radius * Math.sin(angle),
+        },
+      };
+    });
+
+    setNodes(arrangedNodes);
+  }, [graphElements]);
+
+  return (
+    <div className="h-[600px] w-full border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        fitView
+        attributionPosition="bottom-right"
+        defaultEdgeOptions={{
+          type: 'smoothstep',
+          animated: true,
+        }}
+      >
+        <Background color="#64748b" />
+        <Controls />
+      </ReactFlow>
+    </div>
+  );
+};
+
+const KbWorkflow: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
+  const [source, setSource] = useState('');
+  const [graphElements, setGraphElements] = useState<KnowledgeGraphElements>({ nodes: [], relationships: [] });
+
   // Step 1 handler: Submit source text
   const handleSourceSubmit = async (): Promise<void> => {
     setIsLoading(true);
     setError('');
 
     try {
-       handleNext();
+      // Call the knowledge graph extraction API with the document field
+      const result = await researchApi.extractKnowledgeGraph(source.trim());
+      setGraphElements(result);
+      handleNext();
     } catch (err: unknown) {
       console.error('Error extracting knowledge graph:', err);
       setError('Failed to extract knowledge graph from source. Please try again.');
@@ -41,6 +191,8 @@ const LabWorkflow: React.FC = () => {
     setActiveStep(0);
     setIsLoading(false);
     setError('');
+    setSource('');
+    setGraphElements({ nodes: [], relationships: [] });
   };
 
   const workflowSteps: WorkflowStep[] = [
@@ -49,11 +201,26 @@ const LabWorkflow: React.FC = () => {
       description: 'Enter or paste your source text',
       action: handleSourceSubmit,
       actionButtonText: () => 'Process Source',
-      isDisabled: () => true,
+      isDisabled: () => !source.trim(),
       component: (props) => (
-        <div>
-          <h1>Source Input</h1>
-        </div>
+        <SourceInput
+          {...props}
+          source={source}
+          error={error}
+          onSourceChange={setSource}
+        />
+      )
+    },
+    {
+      label: 'Knowledge Graph',
+      description: 'View extracted entities and relationships',
+      action: async () => { /* No action needed for final step */ },
+      actionButtonText: () => 'Done',
+      component: (props) => (
+        <KnowledgeGraphDisplay
+          {...props}
+          graphElements={graphElements}
+        />
       )
     }
   ];
@@ -148,4 +315,4 @@ const LabWorkflow: React.FC = () => {
   );
 };
 
-export default LabWorkflow; 
+export default KbWorkflow; 
