@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     LOG_MAX_BYTES: int = 10 * 1024 * 1024  # 10MB
     LOG_BACKUP_COUNT: int = 5
 
+    # Neo4j Settings
+    NEO4J_URI: str = os.getenv(
+        "NEO4J_URI", "neo4j://801e8074.databases.neo4j.io")
+    NEO4J_API_KEY: str = os.getenv("NEO4J_API_KEY", "")
+    NEO4J_DATABASE: str = os.getenv("NEO4J_DATABASE", "neo4j")
+
     @property
     def DATABASE_URL(self) -> str:
         return f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
@@ -81,6 +87,11 @@ class Settings(BaseSettings):
         os.environ["OPENAI_API_KEY"] = self.OPENAI_API_KEY
         os.environ["GOOGLE_API_KEY"] = self.GOOGLE_SEARCH_API_KEY
         os.environ["GOOGLE_CSE_ID"] = self.GOOGLE_SEARCH_ENGINE_ID
+
+        # Add Neo4j validation
+        if not self.NEO4J_API_KEY:
+            raise ValueError(
+                "NEO4J_API_KEY not found in environment variables")
 
 
 settings = Settings()
