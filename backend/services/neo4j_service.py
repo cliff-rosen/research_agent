@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Optional
 import logging
 from config.settings import settings
 import json
+from schemas import KnowledgeGraphElements, KnowledgeGraphNode, KnowledgeGraphRelationship
 
 logger = logging.getLogger(__name__)
 
@@ -150,93 +151,81 @@ class Neo4jService:
             logger.error(f"Error retrieving research history: {str(e)}")
             raise
 
-    async def store_knowledge_graph_elements(self, elements: Dict[str, List[Dict[str, Any]]]) -> None:
+    async def store_knowledge_graph_elements(self, elements: KnowledgeGraphElements) -> None:
         """
         Store extracted knowledge graph elements (nodes and relationships) in Neo4j.
 
         Args:
-            elements (Dict[str, List[Dict[str, Any]]]): Dictionary containing nodes and relationships
+            elements (KnowledgeGraphElements): Pydantic model containing nodes and relationships
                 Format:
                 {
-                    "nodes": [{"id": str, "label": str, "properties": Dict}],
-                    "relationships": [{"source": str, "target": str, "type": str, "properties": Dict}]
+                    "nodes": List[KnowledgeGraphNode],
+                    "relationships": List[KnowledgeGraphRelationship]
                 }
         """
-        if not elements.get('nodes') and not elements.get('relationships'):
+        if not elements.nodes and not elements.relationships:
             logger.warning("No knowledge graph elements to store")
             return
 
         try:
             # First create all nodes
-            # Escape special characters in labels and handle properties safely
-            nodes = []
-            for node in elements.get('nodes', []):
-                # Escape backticks in label
-                label = node['label'].replace('`', '``')
-                # Create a safe copy of properties
-                safe_props = {
-                    k: str(v) if isinstance(v, (str, int, float, bool)) else json.dumps(v)
-                    for k, v in node['properties'].items()
-                }
-                nodes.append({
-                    'id': node['id'],
-                    'label': label,
-                    'properties': safe_props
-                })
-
+            logger.info(f"Starting to store {len(elements.nodes)} nodes in Neo4j")
+            
             # Create nodes one at a time to handle dynamic labels
-            for node in nodes:
-                node_query = f"""
-                MERGE (n:`{node['label']}` {{id: $id}})
-                SET n += $properties
-                """
-                
-                await self.execute_query(node_query, {
-                    "id": node['id'],
-                    "properties": node['properties']
-                })
+            for i, node in enumerate(elements.nodes, 1):
+                try:
+                    # Escape backticks in label
+                    label = node.label.replace('`', '``')
+                    
+                    node_query = f"""
+                    MERGE (n:`{label}` {{id: $id}})
+                    SET n += $properties
+                    """
+                    
+                    await self.execute_query(node_query, {
+                        "id": node.id,
+                        "properties": node.properties
+                    })
+                    logger.debug(f"Successfully stored node {i}/{len(elements.nodes)}: {node.id} ({node.label})")
+                except Exception as e:
+                    logger.error(f"Error storing node {node.id}: {str(e)}")
+                    raise
             
-            if nodes:
-                logger.info(f"Successfully created {len(nodes)} nodes")
+            if elements.nodes:
+                logger.info(f"Successfully created {len(elements.nodes)} nodes")
 
-            # Then create all relationships
-            # Handle relationship types and properties safely
-            relationships = []
-            for rel in elements.get('relationships', []):
-                # Escape special characters in relationship type
-                rel_type = rel['type'].replace('`', '``')
-                # Create a safe copy of properties
-                safe_props = {
-                    k: str(v) if isinstance(v, (str, int, float, bool)) else json.dumps(v)
-                    for k, v in rel['properties'].items()
-                }
-                relationships.append({
-                    'source': rel['source'],
-                    'target': rel['target'],
-                    'type': rel_type,
-                    'properties': safe_props
-                })
-
+            # Create relationships
+            logger.info(f"Starting to store {len(elements.relationships)} relationships in Neo4j")
+            
             # Create relationships one at a time to handle dynamic relationship types
-            for rel in relationships:
-                rel_query = f"""
-                MATCH (source {{id: $source}})
-                MATCH (target {{id: $target}})
-                MERGE (source)-[r:`{rel['type']}`]->(target)
-                SET r += $properties
-                """
-                
-                await self.execute_query(rel_query, {
-                    "source": rel['source'],
-                    "target": rel['target'],
-                    "properties": rel['properties']
-                })
+            for i, rel in enumerate(elements.relationships, 1):
+                try:
+                    # Escape special characters in relationship type
+                    rel_type = rel.type.replace('`', '``')
+                    
+                    rel_query = f"""
+                    MATCH (source {{id: $source}})
+                    MATCH (target {{id: $target}})
+                    MERGE (source)-[r:`{rel_type}`]->(target)
+                    SET r += $properties
+                    """
+                    
+                    await self.execute_query(rel_query, {
+                        "source": rel.source,
+                        "target": rel.target,
+                        "properties": rel.properties
+                    })
+                    logger.debug(f"Successfully stored relationship {i}/{len(elements.relationships)}: {rel.source}-[{rel.type}]->{rel.target}")
+                except Exception as e:
+                    logger.error(f"Error storing relationship {rel.source}-[{rel.type}]->{rel.target}: {str(e)}")
+                    raise
             
-            if relationships:
-                logger.info(f"Successfully created {len(relationships)} relationships")
+            if elements.relationships:
+                logger.info(f"Successfully created {len(elements.relationships)} relationships")
 
         except Exception as e:
             logger.error(f"Error storing knowledge graph elements: {str(e)}")
+            logger.exception("Full traceback:")
             raise
 
 

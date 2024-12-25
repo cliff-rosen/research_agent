@@ -549,8 +549,8 @@ async def extract_knowledge_graph(
         # Store elements in Neo4j
         await neo4j_service.store_knowledge_graph_elements(elements)
         
-        # Convert to Pydantic model for validation and response
-        return KnowledgeGraphElements(**elements)
+        # Return the elements directly since they're already a KnowledgeGraphElements instance
+        return elements
     except Exception as e:
         logger.error(f"Error in extract_knowledge_graph: {str(e)}")
         raise HTTPException(

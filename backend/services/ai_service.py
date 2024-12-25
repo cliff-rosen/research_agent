@@ -4,7 +4,10 @@ from config.settings import settings
 from .llm.base import LLMProvider
 from .llm.anthropic_provider import AnthropicProvider
 from .llm.openai_provider import OpenAIProvider
-from schemas import QuestionAnalysis, ResearchAnswer, URLContent
+from schemas import (
+    QuestionAnalysis, ResearchAnswer, URLContent, 
+    KnowledgeGraphElements, KnowledgeGraphNode, KnowledgeGraphRelationship
+)
 
 logger = logging.getLogger(__name__)
 
@@ -252,9 +255,10 @@ Guidelines for extraction:
 - Focus on meaningful entities and relationships that capture key information
 - Use consistent naming for similar types of entities
 - Capture directional relationships where relevant
-- Include relevant properties for both nodes and relationships
+- Include relevant properties for both nodes and relationships (use empty object {} if no properties)
 - Avoid overly generic or uninformative relationships
 - Ensure relationship types are specific and meaningful
+- IMPORTANT: Every relationship MUST have a properties field, even if empty
 
 Return a JSON object with this structure:
 {
@@ -308,11 +312,20 @@ Example response:
             "properties": {
                 "since": "2020"
             }
+        },
+        {
+            "source": "p1",
+            "target": "c1",
+            "type": "OWNS",
+            "properties": {}  // Example of empty properties when no additional info
         }
     ]
 }
 
-IMPORTANT: Return ONLY the JSON object. Do not include any explanatory text or markdown formatting.'''
+IMPORTANT: 
+1. Return ONLY the JSON object. Do not include any explanatory text or markdown formatting.
+2. Every relationship MUST include a properties field, even if it's an empty object {}.
+3. Ensure all IDs are unique and referenced correctly in relationships.'''
 
 
 class AIService:
@@ -1016,7 +1029,7 @@ Answer to Evaluate: {answer}
                 "improvement_explanation": f"An error occurred: {str(e)}"
             }
 
-    async def extract_knowledge_graph_elements(self, document: str, model: Optional[str] = None) -> Dict:
+    async def extract_knowledge_graph_elements(self, document: str, model: Optional[str] = None) -> KnowledgeGraphElements:
         """
         Extract nodes and relationships from a document to populate a knowledge graph.
 
@@ -1025,13 +1038,10 @@ Answer to Evaluate: {answer}
             model (Optional[str]): Optional specific model to use
 
         Returns:
-            Dict containing nodes and relationships in the format:
-            {
-                "nodes": [{"id": str, "label": str, "properties": Dict}],
-                "relationships": [{"source": str, "target": str, "type": str, "properties": Dict}]
-            }
+            KnowledgeGraphElements: Extracted nodes and relationships with proper validation
         """
         try:
+            logger.info(f"Starting knowledge graph extraction for document of length {len(document)}")
             messages = [
                 {"role": "user", "content": f"Extract knowledge graph elements from this text:\n\n{document}"}
             ]
@@ -1045,50 +1055,55 @@ Answer to Evaluate: {answer}
             try:
                 # Clean the response string
                 response_text = content.strip()
+                logger.debug(f"Raw AI response: {response_text}")
+
                 if response_text.startswith('```json'):
                     response_text = response_text.split('```')[1].strip()
+                    logger.debug("Removed JSON code block markers")
                 elif response_text.startswith('```'):
                     response_text = response_text.split('```')[1].strip()
+                    logger.debug("Removed code block markers")
 
-                # Parse JSON response
+                # Parse JSON response and validate with Pydantic
                 import json
-                result = json.loads(response_text)
+                try:
+                    raw_result = json.loads(response_text)
+                    logger.debug(f"Parsed JSON result: {raw_result}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse JSON: {str(e)}\nResponse text: {response_text}")
+                    raise
+                
+                # Log the extracted elements before validation
+                logger.info(f"Extracted {len(raw_result.get('nodes', []))} nodes and {len(raw_result.get('relationships', []))} relationships")
+                
+                # Convert raw dictionaries to Pydantic models for validation
+                try:
+                    nodes = [KnowledgeGraphNode(**node) for node in raw_result.get('nodes', [])]
+                    logger.debug(f"Successfully validated {len(nodes)} nodes")
+                except Exception as e:
+                    logger.error(f"Node validation error: {str(e)}")
+                    raise
 
-                # Validate the response has required fields
-                if not isinstance(result.get('nodes'), list):
-                    raise ValueError("Missing or invalid 'nodes' field in response")
-                if not isinstance(result.get('relationships'), list):
-                    raise ValueError("Missing or invalid 'relationships' field in response")
-
-                # Validate each node has required fields
-                for node in result['nodes']:
-                    if not all(k in node for k in ['id', 'label', 'properties']):
-                        raise ValueError("Node missing required fields")
-                    if not isinstance(node['properties'], dict):
-                        raise ValueError("Node properties must be a dictionary")
-
-                # Validate each relationship has required fields
-                for rel in result['relationships']:
-                    if not all(k in rel for k in ['source', 'target', 'type', 'properties']):
-                        raise ValueError("Relationship missing required fields")
-                    if not isinstance(rel['properties'], dict):
-                        raise ValueError("Relationship properties must be a dictionary")
-
+                try:
+                    relationships = [KnowledgeGraphRelationship(**rel) for rel in raw_result.get('relationships', [])]
+                    logger.debug(f"Successfully validated {len(relationships)} relationships")
+                except Exception as e:
+                    logger.error(f"Relationship validation error: {str(e)}")
+                    raise
+                
+                # Create and validate the final result
+                result = KnowledgeGraphElements(nodes=nodes, relationships=relationships)
+                logger.info(f"Successfully created knowledge graph with {len(result.nodes)} nodes and {len(result.relationships)} relationships")
                 return result
 
             except json.JSONDecodeError as e:
                 logger.error(f"Error parsing knowledge graph JSON response: {str(e)}\nResponse: {content}")
-                return {
-                    "nodes": [],
-                    "relationships": []
-                }
+                return KnowledgeGraphElements(nodes=[], relationships=[])
 
         except Exception as e:
             logger.error(f"Error in extract_knowledge_graph_elements: {str(e)}")
-            return {
-                "nodes": [],
-                "relationships": []
-            }
+            logger.exception("Full traceback:")
+            return KnowledgeGraphElements(nodes=[], relationships=[])
 
 
 # Create a singleton instance

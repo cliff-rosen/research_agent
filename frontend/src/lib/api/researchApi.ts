@@ -115,11 +115,6 @@ export const researchApi = {
     },
 
 
-    // Add utility functions for consistency
-    handleError: handleApiError,
-
-    // DEPRECATED
-
     analyzeQuestion: async (question: string): Promise<QuestionAnalysisResponse> => {
         try {
             const response = await api.get(`/api/research/analyze-question?question=${encodeURIComponent(question)}`);
@@ -174,4 +169,8 @@ export const researchApi = {
             throw handleApiError(error);
         }
     },
+
+    // Add utility functions for consistency
+    handleError: handleApiError,
+
 } 
