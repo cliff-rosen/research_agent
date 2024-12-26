@@ -1,4 +1,4 @@
-from neo4j import AsyncGraphDatabase
+from neo4j import AsyncGraphDatabase, AsyncDriver
 from typing import List, Dict, Any, Optional
 import logging
 from config.settings import settings
@@ -10,36 +10,45 @@ logger = logging.getLogger(__name__)
 
 class Neo4jService:
     def __init__(self):
-        # Get connection details from settings
+        self.driver: Optional[AsyncDriver] = None
         self.uri = settings.NEO4J_URI
         self.api_key = settings.NEO4J_API_KEY
-        self.driver = None
 
-    async def connect(self):
-        """Initialize the Neo4j driver connection."""
+    async def connect(self) -> None:
+        """Establish connection to Neo4j database using API key authentication"""
         try:
-            if not self.driver:
-                self.driver = AsyncGraphDatabase.driver(
-                    self.uri,
-                    auth=("neo4j", self.api_key),
-                    database=settings.NEO4J_DATABASE,
-                    max_connection_lifetime=3600,
-                    max_connection_pool_size=50,
-                    connection_timeout=30
-                )
-                # Verify connection
-                await self.driver.verify_connectivity()
-                logger.info("Successfully connected to Neo4j database")
+            logger.info(f"Attempting to connect to Neo4j at {self.uri}")
+            logger.debug(
+                f"Using API key authentication (key length: {len(self.api_key) if self.api_key else 0})")
+
+            # Connect using API key instead of username/password
+            self.driver = AsyncGraphDatabase.driver(
+                self.uri,
+                auth=("neo4j", self.api_key)  # API key authentication
+            )
+
+            # Test the connection
+            await self.driver.verify_connectivity()
+            logger.info("Successfully connected to Neo4j database")
+
         except Exception as e:
-            logger.error(f"Failed to connect to Neo4j: {str(e)}")
+            logger.error(
+                f"Failed to connect to Neo4j: {str(e)}", exc_info=True)
+            self.driver = None
             raise
 
-    async def close(self):
-        """Close the Neo4j driver connection."""
+    async def close(self) -> None:
+        """Close the Neo4j connection"""
         if self.driver:
-            await self.driver.close()
-            self.driver = None
-            logger.info("Neo4j connection closed")
+            try:
+                logger.info("Closing Neo4j connection")
+                await self.driver.close()
+                logger.info("Neo4j connection closed successfully")
+            except Exception as e:
+                logger.error(
+                    f"Error closing Neo4j connection: {str(e)}", exc_info=True)
+            finally:
+                self.driver = None
 
     async def execute_query(self, query: str, parameters: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         """
@@ -152,81 +161,53 @@ class Neo4jService:
             raise
 
     async def store_knowledge_graph_elements(self, elements: KnowledgeGraphElements) -> None:
-        """
-        Store extracted knowledge graph elements (nodes and relationships) in Neo4j.
-
-        Args:
-            elements (KnowledgeGraphElements): Pydantic model containing nodes and relationships
-                Format:
-                {
-                    "nodes": List[KnowledgeGraphNode],
-                    "relationships": List[KnowledgeGraphRelationship]
-                }
-        """
-        if not elements.nodes and not elements.relationships:
-            logger.warning("No knowledge graph elements to store")
-            return
+        """Store knowledge graph elements in Neo4j."""
+        if not self.driver:
+            logger.error("No Neo4j connection available")
+            raise RuntimeError("Neo4j connection not established")
 
         try:
-            # First create all nodes
-            logger.info(f"Starting to store {len(elements.nodes)} nodes in Neo4j")
-            
-            # Create nodes one at a time to handle dynamic labels
-            for i, node in enumerate(elements.nodes, 1):
-                try:
-                    # Escape backticks in label
-                    label = node.label.replace('`', '``')
-                    
-                    node_query = f"""
-                    MERGE (n:`{label}` {{id: $id}})
-                    SET n += $properties
-                    """
-                    
-                    await self.execute_query(node_query, {
-                        "id": node.id,
-                        "properties": node.properties
-                    })
-                    logger.debug(f"Successfully stored node {i}/{len(elements.nodes)}: {node.id} ({node.label})")
-                except Exception as e:
-                    logger.error(f"Error storing node {node.id}: {str(e)}")
-                    raise
-            
-            if elements.nodes:
-                logger.info(f"Successfully created {len(elements.nodes)} nodes")
+            logger.info(
+                f"Storing {len(elements.nodes)} nodes and {len(elements.relationships)} relationships")
 
-            # Create relationships
-            logger.info(f"Starting to store {len(elements.relationships)} relationships in Neo4j")
-            
-            # Create relationships one at a time to handle dynamic relationship types
-            for i, rel in enumerate(elements.relationships, 1):
-                try:
-                    # Escape special characters in relationship type
-                    rel_type = rel.type.replace('`', '``')
-                    
-                    rel_query = f"""
-                    MATCH (source {{id: $source}})
-                    MATCH (target {{id: $target}})
-                    MERGE (source)-[r:`{rel_type}`]->(target)
-                    SET r += $properties
-                    """
-                    
-                    await self.execute_query(rel_query, {
-                        "source": rel.source,
-                        "target": rel.target,
-                        "properties": rel.properties
-                    })
-                    logger.debug(f"Successfully stored relationship {i}/{len(elements.relationships)}: {rel.source}-[{rel.type}]->{rel.target}")
-                except Exception as e:
-                    logger.error(f"Error storing relationship {rel.source}-[{rel.type}]->{rel.target}: {str(e)}")
-                    raise
-            
-            if elements.relationships:
-                logger.info(f"Successfully created {len(elements.relationships)} relationships")
+            async with self.driver.session() as session:
+                # Store nodes
+                for node in elements.nodes:
+                    logger.debug(
+                        f"Creating node: ID={node.id}, Label={node.label}, Properties={node.properties}")
+                    query = (
+                        f"MERGE (n:{node.label} {{id: $id}}) "
+                        "SET n += $properties"
+                    )
+                    await session.run(query, {"id": node.id, "properties": node.properties})
+
+                # Store relationships
+                for rel in elements.relationships:
+                    logger.debug(
+                        f"Creating relationship: {rel.source}-[{rel.type}]->{rel.target}")
+                    query = (
+                        "MATCH (source {id: $source_id}), (target {id: $target_id}) "
+                        f"MERGE (source)-[r:{rel.type}]->(target) "
+                        "SET r += $properties"
+                    )
+                    await session.run(
+                        query,
+                        {
+                            "source_id": rel.source,
+                            "target_id": rel.target,
+                            "properties": rel.properties
+                        }
+                    )
+
+            logger.info("Successfully stored all knowledge graph elements")
 
         except Exception as e:
-            logger.error(f"Error storing knowledge graph elements: {str(e)}")
-            logger.exception("Full traceback:")
-            raise
+            logger.error(
+                "Error storing knowledge graph elements", exc_info=True)
+            logger.error(f"Nodes: {elements.nodes}")
+            logger.error(f"Relationships: {elements.relationships}")
+            raise RuntimeError(
+                f"Failed to store knowledge graph elements: {str(e)}")
 
 
 # Create a singleton instance
