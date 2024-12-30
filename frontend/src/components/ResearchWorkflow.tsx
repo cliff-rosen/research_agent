@@ -377,6 +377,8 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         setIsSearching(false);
         setError('');
         setQuestion('');
+        setImprovedQuestion(null);
+        setIsUsingImprovedQuestion(false);  
         setAnalysisMarkdown('');
         setAnalysis(null);
         setEnhancedQuestion('');
