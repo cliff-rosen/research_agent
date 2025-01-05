@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { researchApi, KnowledgeGraphElements } from '../lib/api/researchApi';
 
 interface WorkflowStep {
   label: string;
@@ -13,14 +12,14 @@ interface WorkflowStep {
 const LabWorkflow: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string>('');
+  const [_error, setError] = useState<string>('');
   // Step 1 handler: Submit source text
   const handleSourceSubmit = async (): Promise<void> => {
     setIsLoading(true);
     setError('');
 
     try {
-       handleNext();
+      handleNext();
     } catch (err: unknown) {
       console.error('Error extracting knowledge graph:', err);
       setError('Failed to extract knowledge graph from source. Please try again.');
@@ -50,7 +49,7 @@ const LabWorkflow: React.FC = () => {
       action: handleSourceSubmit,
       actionButtonText: () => 'Process Source',
       isDisabled: () => true,
-      component: (props) => (
+      component: () => (
         <div>
           <h1>Source Input</h1>
         </div>

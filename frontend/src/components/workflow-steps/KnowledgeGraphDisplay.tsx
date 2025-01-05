@@ -73,7 +73,7 @@ const KnowledgeGraphDisplay: React.FC<KnowledgeGraphDisplayProps> = ({ graphElem
   }));
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [edges, _setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
   // Auto-arrange nodes in a circle
   useEffect(() => {
