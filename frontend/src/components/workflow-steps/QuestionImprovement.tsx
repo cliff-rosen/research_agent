@@ -3,18 +3,18 @@ import { QuestionImprovement as QuestionImprovementType } from '../../lib/api/re
 
 interface QuestionImprovementProps {
     improvement: QuestionImprovementType | null;
-    isUsingImprovedQuestion: boolean;
-    onToggleUseImproved: (use: boolean) => void;
+    finalQuestion: string;
+    onQuestionSelect: (question: string) => void;
     originalQuestion: string;
-    onQuestionEdit: (question: string) => void;
+    setQuestion: (question: string) => void;
 }
 
 const QuestionImprovement: React.FC<QuestionImprovementProps> = ({
     improvement,
-    isUsingImprovedQuestion,
-    onToggleUseImproved,
+    finalQuestion,
+    onQuestionSelect,
     originalQuestion,
-    onQuestionEdit
+    setQuestion
 }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedQuestion, setEditedQuestion] = useState('');
@@ -23,15 +23,21 @@ const QuestionImprovement: React.FC<QuestionImprovementProps> = ({
     // Initialize edited question when starting to edit
     const startEditing = (source: 'original' | 'improved') => {
         setEditSource(source);
-        setEditedQuestion(source === 'original' ? originalQuestion : (improvement?.improved_question || ''));
+        // Start with the current text of the version being edited
+        const startingText = source === 'original' ? originalQuestion : improvement?.improved_question || '';
+        setEditedQuestion(startingText);
         setIsEditing(true);
     };
 
     // Save edited question
     const handleSaveEdit = () => {
-        onQuestionEdit(editedQuestion);
+        if (editSource === 'original') {
+            setQuestion(editedQuestion);
+            onQuestionSelect(editedQuestion);
+        } else {
+            onQuestionSelect(editedQuestion);
+        }
         setIsEditing(false);
-        onToggleUseImproved(false); // Reset to using edited version
     };
 
     if (!improvement) {
@@ -51,8 +57,8 @@ const QuestionImprovement: React.FC<QuestionImprovementProps> = ({
                     <div className="flex items-start gap-3">
                         <input
                             type="radio"
-                            checked={!isUsingImprovedQuestion}
-                            onChange={() => onToggleUseImproved(false)}
+                            checked={finalQuestion === originalQuestion}
+                            onChange={() => onQuestionSelect(originalQuestion)}
                             className="mt-1.5"
                         />
                         <div className="flex-1">
@@ -75,8 +81,8 @@ const QuestionImprovement: React.FC<QuestionImprovementProps> = ({
                     <div className="flex items-start gap-3">
                         <input
                             type="radio"
-                            checked={isUsingImprovedQuestion}
-                            onChange={() => onToggleUseImproved(true)}
+                            checked={finalQuestion === improvement.improved_question}
+                            onChange={() => onQuestionSelect(improvement.improved_question)}
                             className="mt-1.5"
                         />
                         <div className="flex-1">
@@ -129,7 +135,7 @@ const QuestionImprovement: React.FC<QuestionImprovementProps> = ({
             {/* Analysis Section */}
             <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
                 <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-200">Analysis</h3>
-                
+
                 {/* Clarity Issues */}
                 {improvement.analysis.clarity_issues.length > 0 && (
                     <div className="mb-4">

@@ -27,6 +27,8 @@ const ResearchWorkflow: React.FC = () => {
     const [error, setError] = useState<string>('');
 
     const [question, setQuestion] = useState('');
+    const [improvedQuestion, setImprovedQuestion] = useState<QuestionImprovementType | null>(null);
+    const [finalQuestion, setFinalQuestion] = useState('');
 
     const [analysisMarkdown, setAnalysisMarkdown] = useState<string>('');
     const [analysis, setAnalysis] = useState<QuestionAnalysisResponse | null>(null);
@@ -45,8 +47,6 @@ const ResearchWorkflow: React.FC = () => {
     const [selectedQueries, setSelectedQueries] = useState<Set<string>>(new Set());
     const [selectedSourcesSet, setSelectedSourcesSet] = useState<Set<SearchResult>>(new Set());
 
-    const [improvedQuestion, setImprovedQuestion] = useState<QuestionImprovementType | null>(null);
-    const [isUsingImprovedQuestion, setIsUsingImprovedQuestion] = useState(false);
 
     // Step 1 handler: Submit initial question for improvement
     const handleInitialSubmit = async (): Promise<void> => {
@@ -57,6 +57,7 @@ const ResearchWorkflow: React.FC = () => {
         try {
             const improvement = await researchApi.improveQuestion(question);
             setImprovedQuestion(improvement);
+            setFinalQuestion(question); // Initially select the original question
             handleNext();
         } catch (err: unknown) {
             console.error('Error improving question:', err);
@@ -66,34 +67,20 @@ const ResearchWorkflow: React.FC = () => {
         }
     };
 
-    // Handle question editing
-    const handleQuestionEdit = (editedQuestion: string) => {
-        setQuestion(editedQuestion);
-        // Reset improvement state since we're using a custom edited version
-        setIsUsingImprovedQuestion(false);
-    };
-
-    // Step 2 handler: Improve the question
+    // Step 2 handler: Analyze the question
     const handleImprovedQuestionSubmit = async (): Promise<void> => {
-        // Update the question if using improved version
-        if (isUsingImprovedQuestion && improvedQuestion) {
-            setQuestion(improvedQuestion.improved_question);
-        }
-
-        // Proceed with question analysis
-        await handleQuestionSubmit();
+        await analyzeQuestion();
     };
 
-    // Step 2a handler: Analyze the question
-    const handleQuestionSubmit = async (): Promise<void> => {
+    const analyzeQuestion = async (): Promise<void> => {
         setIsLoading(true);
         setError('');
         setAnalysisMarkdown('');
         setAnalysis(null);
 
         try {
-            // Start the streaming analysis
-            const analysisStream = researchApi.analyzeQuestionStream(question);
+            // Start the streaming analysis using finalQuestion
+            const analysisStream = researchApi.analyzeQuestionStream(finalQuestion);
             let hasAdvanced = false;
             let accumulatedContent = '';
 
@@ -151,6 +138,8 @@ const ResearchWorkflow: React.FC = () => {
     };
 
     // Step 3 handler: Expand the question
+    // inputs from state: question, analysis
+    // outputs to state: enhancedQuestion, expandedQueriesMarkdown, expandedQueries
     const handleQueryExpansion = async (): Promise<void> => {
         if (!analysis) return;
 
@@ -210,6 +199,8 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
     };
 
     // Step 4: Execute the queries
+    // inputs from state: selectedQueries, expandedQueries
+    // outputs to state: searchResults  
     const handleSubmitQueries = async (queries: string[]): Promise<void> => {
         try {
             setIsLoading(true);
@@ -267,8 +258,10 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         }
     };
 
-    // Step 5: Select sources
-    const handleSourceSelection = async (_selected: SearchResult[]): Promise<void> => {
+    // Step 5: Retrieve selected sources
+    // inputs from state: selectedSourcesSet
+    // outputs to state: selectedSources, sourceContent
+    const handleSourceSelection = async (): Promise<void> => {
         try {
             setIsLoading(true);
             setSelectedSources(Array.from(selectedSourcesSet));
@@ -290,6 +283,8 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
     };
 
     // Step 6: Analyze the sources
+    // inputs from state: enhancedQuestion, sourceContent
+    // outputs to state: researchAnswer, evaluation 
     const handleAnalysisProceed = async () => {
         try {
             setIsLoading(true);
@@ -378,7 +373,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         setError('');
         setQuestion('');
         setImprovedQuestion(null);
-        setIsUsingImprovedQuestion(false);  
+        setFinalQuestion('');
         setAnalysisMarkdown('');
         setAnalysis(null);
         setEnhancedQuestion('');
@@ -424,10 +419,10 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
                 <QuestionImprovement
                     {...props}
                     improvement={improvedQuestion}
-                    isUsingImprovedQuestion={isUsingImprovedQuestion}
-                    onToggleUseImproved={setIsUsingImprovedQuestion}
-                    onQuestionEdit={handleQuestionEdit}
+                    finalQuestion={finalQuestion}
+                    onQuestionSelect={setFinalQuestion}
                     originalQuestion={question}
+                    setQuestion={setQuestion}
                 />
             )
         },
@@ -473,7 +468,7 @@ ${analysis.success_criteria.map(c => `- ${c}`).join('\n')}
         {
             label: 'Source Selection',
             description: 'Review and select relevant sources',
-            action: () => handleSourceSelection([]),
+            action: handleSourceSelection,
             actionButtonText: () => `Analyze Selected Sources (${selectedSourcesSet.size})`,
             isDisabled: () => selectedSourcesSet.size === 0,
             component: (props) => (
